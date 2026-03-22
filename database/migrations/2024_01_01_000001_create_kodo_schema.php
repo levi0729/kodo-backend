@@ -8,7 +8,7 @@ return new class extends Migration
     public function up(): void
     {
         // Read and execute the PostgreSQL schema file
-        $sql = file_get_contents(base_path('../kodo/kodo_database_postgresql.sql'));
+        $sql = file_get_contents(base_path('database/schema.sql'));
         DB::unprepared($sql);
     }
 
