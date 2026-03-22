@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: kodo-api
+    runtime: docker
+    plan: free
+    envVars:
+      - key: APP_NAME
+        value: Kodo
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        generateValue: true
+      - key: APP_URL
+        fromService:
+          name: kodo-api
+          type: web
+          property: host
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DATABASE_URL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: SESSION_DRIVER
+        value: file
+      - key: CACHE_STORE
+        value: file
+      - key: QUEUE_CONNECTION
+        value: sync
