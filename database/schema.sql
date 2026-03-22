@@ -824,5 +824,72 @@ INSERT INTO organizations (name, slug, description, plan_type, max_members)
 VALUES ('Kodo Labs', 'kodo-labs', 'Kodo Team Management Platform', 'business', 50);
 
 -- ============================================================================
+-- 19. LARAVEL SUPPORT TABLES
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS sessions (
+    id VARCHAR(255) PRIMARY KEY,
+    user_id BIGINT,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    payload TEXT NOT NULL,
+    last_activity INT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_activity ON sessions(last_activity);
+
+CREATE TABLE IF NOT EXISTS cache (
+    key VARCHAR(255) PRIMARY KEY,
+    value TEXT NOT NULL,
+    expiration INT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS cache_locks (
+    key VARCHAR(255) PRIMARY KEY,
+    owner VARCHAR(255) NOT NULL,
+    expiration INT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS jobs (
+    id BIGSERIAL PRIMARY KEY,
+    queue VARCHAR(255) NOT NULL,
+    payload TEXT NOT NULL,
+    attempts SMALLINT NOT NULL,
+    reserved_at INT,
+    available_at INT NOT NULL,
+    created_at INT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_jobs_queue ON jobs(queue);
+
+CREATE TABLE IF NOT EXISTS job_batches (
+    id VARCHAR(255) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    total_jobs INT NOT NULL,
+    pending_jobs INT NOT NULL,
+    failed_jobs INT NOT NULL,
+    failed_job_ids TEXT NOT NULL,
+    options TEXT,
+    cancelled_at INT,
+    created_at INT NOT NULL,
+    finished_at INT
+);
+
+CREATE TABLE IF NOT EXISTS failed_jobs (
+    id BIGSERIAL PRIMARY KEY,
+    uuid VARCHAR(255) UNIQUE NOT NULL,
+    connection TEXT NOT NULL,
+    queue TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    exception TEXT NOT NULL,
+    failed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    email VARCHAR(255) PRIMARY KEY,
+    token VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP
+);
+
+-- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================
