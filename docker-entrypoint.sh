@@ -8,7 +8,7 @@ fi
 
 # Run the raw SQL schema directly via PHP (avoids Laravel migration transaction issues)
 php -r "
-\$url = env('DATABASE_URL') ?: getenv('DATABASE_URL');
+\$url = getenv('DATABASE_URL');
 \$host = getenv('DB_HOST');
 \$port = getenv('DB_PORT') ?: '5432';
 \$db   = getenv('DB_DATABASE') ?: 'neondb';
