@@ -16,7 +16,7 @@ class SendMessageRequest extends FormRequest
         return [
             'receiver_id' => ['required_without:team_id', 'nullable', 'integer', 'exists:users,id'],
             'team_id'     => ['required_without:receiver_id', 'nullable', 'integer', 'exists:teams,id'],
-            'message'     => ['required', 'string', 'max:5000'],
+            'message'     => ['required', 'string', 'min:1', 'max:5000'],
         ];
     }
 }

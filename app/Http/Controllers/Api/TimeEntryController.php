@@ -15,11 +15,16 @@ class TimeEntryController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = TimeEntry::with('project')
-            ->where('user_id', Auth::id());
+        $query = TimeEntry::with('project');
 
-        if ($projectId = $request->query('project_id')) {
-            $query->where('project_id', $projectId);
+        // When team=1 is passed with a project_id, return all members' entries
+        if ($request->query('team') && $request->query('project_id')) {
+            $query->where('project_id', $request->query('project_id'));
+        } else {
+            $query->where('user_id', Auth::id());
+            if ($projectId = $request->query('project_id')) {
+                $query->where('project_id', $projectId);
+            }
         }
 
         if ($from = $request->query('from')) {

@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\TeamController;
 use App\Http\Controllers\Api\TimeEntryController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserSettingsController;
+use App\Http\Controllers\Api\VerificationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -29,6 +30,13 @@ Route::get('/health', fn () => response()->json(['status' => 'ok']));
 Route::prefix('auth')->middleware('throttle:10,1')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login',    [AuthController::class, 'login']);
+});
+
+// ── Verification (public, used during 2FA flow) ────────────
+Route::prefix('verification')->middleware('throttle:10,1')->group(function () {
+    Route::post('/send',         [VerificationController::class, 'sendCode']);
+    Route::post('/verify',       [VerificationController::class, 'verifyCode']);
+    Route::post('/check-device', [VerificationController::class, 'checkDevice']);
 });
 
 // ── Protected ──────────────────────────────────────────────
@@ -80,6 +88,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('friends')->group(function () {
         Route::get('/',                  [FriendController::class, 'index']);
         Route::get('/pending',           [FriendController::class, 'pending']);
+        Route::get('/sent',              [FriendController::class, 'sent']);
         Route::post('/request',          [FriendController::class, 'sendRequest']);
         Route::patch('/{friend}/accept', [FriendController::class, 'accept']);
         Route::patch('/{friend}/decline',[FriendController::class, 'decline']);

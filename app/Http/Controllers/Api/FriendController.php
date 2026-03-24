@@ -55,6 +55,21 @@ class FriendController extends Controller
     }
 
     /**
+     * List sent friend requests (by current user, still pending).
+     */
+    public function sent(): JsonResponse
+    {
+        $requests = Friend::where('user_id_1', Auth::id())
+            ->where('status', 'pending')
+            ->with('userTwo')
+            ->get();
+
+        return response()->json([
+            'sent_requests' => FriendResource::collection($requests),
+        ]);
+    }
+
+    /**
      * Send a friend request.
      */
     public function sendRequest(Request $request): JsonResponse

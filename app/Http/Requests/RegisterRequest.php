@@ -19,6 +19,7 @@ class RegisterRequest extends FormRequest
             'password'     => ['required', 'string', 'min:8', 'confirmed'],
             'display_name' => ['sometimes', 'string', 'max:150'],
             'job_title'    => ['sometimes', 'string', 'max:100'],
+            'phone_number' => ['required', 'string', 'max:20'],
         ];
     }
 

@@ -777,6 +777,41 @@ CREATE INDEX idx_activity_logs_user ON activity_logs(user_id, created_at);
 CREATE INDEX idx_activity_logs_target ON activity_logs(target_type, target_id);
 
 -- ============================================================================
+-- 16b. VERIFICATION CODES (2FA login verification)
+-- ============================================================================
+
+CREATE TABLE verification_codes (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL,
+    code VARCHAR(6) NOT NULL,
+    method VARCHAR(10) NOT NULL CHECK (method IN ('email','sms')),
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_verification_codes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_verification_codes_user ON verification_codes(user_id, created_at);
+
+-- ============================================================================
+-- 16c. TRUSTED DEVICES (remember device for 30 days)
+-- ============================================================================
+
+CREATE TABLE trusted_devices (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL,
+    device_token VARCHAR(255) NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_trusted_devices_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_trusted_devices_user ON trusted_devices(user_id);
+CREATE INDEX idx_trusted_devices_token ON trusted_devices(device_token);
+
+-- ============================================================================
 -- 17. USEFUL VIEWS
 -- ============================================================================
 

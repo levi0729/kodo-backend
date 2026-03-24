@@ -66,13 +66,11 @@ class ChatController extends Controller
                 abort(403, 'You are not a member of this team.');
             }
         } else {
-            // DM room — verify via chat history
-            $isParticipant = ChatRoom::where('room_id', $roomId)
-                ->where(function ($q) use ($userId) {
-                    $q->where('sender_id', $userId)
-                      ->orWhere('receiver_id', $userId);
-                })->exists();
-            if (! $isParticipant) {
+            // DM room — verify the user is one of the two participants
+            // room_id = min(a,b) * 100000 + max(a,b)
+            $otherUserId = $roomId % 100000;
+            $minUserId   = (int) (($roomId - $otherUserId) / 100000);
+            if ($userId !== $otherUserId && $userId !== $minUserId) {
                 abort(403, 'You are not part of this conversation.');
             }
         }
