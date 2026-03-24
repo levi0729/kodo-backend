@@ -9,9 +9,8 @@ use App\Models\VerificationCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
-use App\Mail\VerificationCodeMail;
 
 class VerificationController extends Controller
 {
@@ -46,12 +45,25 @@ class VerificationController extends Controller
 
         $destination = $this->maskEmail($user->email);
 
-        // Send the verification code via email
+        // Send the verification code via Resend HTTP API
         try {
-            Mail::to($user->email)->send(new VerificationCodeMail(
-                code: $code,
-                userName: $user->display_name ?? $user->username,
-            ));
+            $userName = $user->display_name ?? $user->username;
+            $html = view('emails.verification-code', [
+                'code' => $code,
+                'userName' => $userName,
+            ])->render();
+
+            $response = Http::withToken(config('services.resend.key'))
+                ->post('https://api.resend.com/emails', [
+                    'from'    => 'Kodo <onboarding@resend.dev>',
+                    'to'      => [$user->email],
+                    'subject' => 'Kodo - Hitelesítési kód',
+                    'html'    => $html,
+                ]);
+
+            if ($response->failed()) {
+                throw new \Exception($response->body());
+            }
         } catch (\Throwable $e) {
             \Log::error('Failed to send verification email: ' . $e->getMessage());
             return response()->json([
