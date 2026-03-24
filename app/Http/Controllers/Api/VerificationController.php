@@ -47,10 +47,23 @@ class VerificationController extends Controller
         $destination = $this->maskEmail($user->email);
 
         // Send the verification code via email
-        Mail::to($user->email)->send(new VerificationCodeMail(
-            code: $code,
-            userName: $user->display_name ?? $user->username,
-        ));
+        try {
+            Mail::to($user->email)->send(new VerificationCodeMail(
+                code: $code,
+                userName: $user->display_name ?? $user->username,
+            ));
+        } catch (\Throwable $e) {
+            \Log::error('Failed to send verification email: ' . $e->getMessage());
+            if (config('app.debug')) {
+                return response()->json([
+                    'message' => 'Failed to send email.',
+                    'error'   => $e->getMessage(),
+                ], 500);
+            }
+            return response()->json([
+                'message' => 'Failed to send verification email. Please try again.',
+            ], 500);
+        }
 
         $response = [
             'message'     => 'Verification code sent.',
