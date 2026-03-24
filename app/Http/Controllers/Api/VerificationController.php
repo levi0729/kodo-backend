@@ -9,7 +9,9 @@ use App\Models\VerificationCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use App\Mail\VerificationCodeMail;
 
 class VerificationController extends Controller
 {
@@ -21,7 +23,6 @@ class VerificationController extends Controller
     {
         $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
-            'method'  => ['required', 'string', 'in:email,sms'],
         ]);
 
         $user = User::findOrFail($request->user_id);
@@ -38,24 +39,31 @@ class VerificationController extends Controller
         VerificationCode::create([
             'user_id'    => $user->id,
             'code'       => $code,
-            'method'     => $request->method,
+            'method'     => 'email',
             'expires_at' => now()->addMinutes(10),
             'created_at' => now(),
         ]);
 
-        // In a production environment, this would send the code via email or SMS.
-        // For development/demo, we return the code in the response.
-        $destination = $request->method === 'email'
-            ? $this->maskEmail($user->email)
-            : $this->maskPhone($user->phone_number);
+        $destination = $this->maskEmail($user->email);
 
-        return response()->json([
+        // Send the verification code via email
+        Mail::to($user->email)->send(new VerificationCodeMail(
+            code: $code,
+            userName: $user->display_name ?? $user->username,
+        ));
+
+        $response = [
             'message'     => 'Verification code sent.',
-            'method'      => $request->method,
+            'method'      => 'email',
             'destination'  => $destination,
-            // DEV ONLY: include code for testing — remove in production
-            'dev_code'    => $code,
-        ]);
+        ];
+
+        // DEV ONLY: include code for testing — remove in production
+        if (config('app.debug')) {
+            $response['dev_code'] = $code;
+        }
+
+        return response()->json($response);
     }
 
     /**
