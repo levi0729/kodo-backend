@@ -90,8 +90,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 return response()->json([
                     'error' => [
                         'code'    => 'SERVER_ERROR',
-                        'message' => $e->getMessage(),
-                        'file'    => $e->getFile() . ':' . $e->getLine(),
+                        'message' => 'Something went wrong on our end. Please try again later.',
                     ],
                 ], 500);
             }
