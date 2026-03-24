@@ -54,14 +54,8 @@ class VerificationController extends Controller
             ));
         } catch (\Throwable $e) {
             \Log::error('Failed to send verification email: ' . $e->getMessage());
-            if (config('app.debug')) {
-                return response()->json([
-                    'message' => 'Failed to send email.',
-                    'error'   => $e->getMessage(),
-                ], 500);
-            }
             return response()->json([
-                'message' => 'Failed to send verification email. Please try again.',
+                'message' => 'Failed to send email: ' . $e->getMessage(),
             ], 500);
         }
 
