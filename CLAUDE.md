@@ -1,5 +1,36 @@
 # Kodo Project Context
 
+> **New to this project?** Read `ROADMAP.md` for the full audit (security issues, missing features, bugs, prioritized plan). This file (`CLAUDE.md`) is automatically loaded by Claude Code to give context about the project.
+
+---
+
+## Getting Started with Claude Code on This Project
+
+### Step 1: Pull the repo
+```bash
+git pull origin main
+```
+
+### Step 2: Open Claude Code in the project folder
+```bash
+cd path/to/iktporjekt/kodo       # or nexus-backend
+claude
+```
+
+Claude Code automatically reads this `CLAUDE.md` file when you start a session, so it already knows the project structure, tech stack, conventions, and known issues.
+
+### Step 3: What you can ask Claude to do
+- **"Fix authorization in TaskController"** — it knows the exact security issues from ROADMAP.md
+- **"Add the time tracking page"** — it knows the backend API already exists and just needs a frontend
+- **"What's broken in the chat system?"** — it knows the 3 authorization holes in ChatController
+- **"Implement task checklists"** — it knows the schema exists but there's no API or UI yet
+- **"Wire up notification settings in Settings.jsx"** — it knows the toggles use hardcoded defaults
+
+### Step 4: Check progress
+Open `ROADMAP.md` and check off items as you complete them. It's organized by priority for the exam.
+
+---
+
 ## What is this
 Kodo is a team/project management web app (like a mini Slack + Trello + Google Calendar). Built for an IKT exam.
 
