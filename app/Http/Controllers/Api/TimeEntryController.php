@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreTimeEntryRequest;
 use App\Http\Requests\UpdateTimeEntryRequest;
 use App\Http\Resources\TimeEntryResource;
+use App\Models\Participant;
 use App\Models\TimeEntry;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,13 +16,22 @@ class TimeEntryController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $userId = Auth::id();
         $query = TimeEntry::with('project');
 
-        // When team=1 is passed with a project_id, return all members' entries
+        // When team mode is requested, verify project membership first
         if ($request->query('team') && $request->query('project_id')) {
-            $query->where('project_id', $request->query('project_id'));
+            $projectId = (int) $request->query('project_id');
+            $isMember = Participant::where('entity_type', 'project')
+                ->where('entity_id', $projectId)
+                ->where('user_id', $userId)
+                ->exists();
+            if (! $isMember) {
+                return response()->json(['message' => 'Forbidden.'], 403);
+            }
+            $query->where('project_id', $projectId);
         } else {
-            $query->where('user_id', Auth::id());
+            $query->where('user_id', $userId);
             if ($projectId = $request->query('project_id')) {
                 $query->where('project_id', $projectId);
             }

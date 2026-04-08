@@ -40,7 +40,7 @@ Route::prefix('verification')->middleware('throttle:10,1')->group(function () {
 });
 
 // ── Protected ──────────────────────────────────────────────
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     // Auth
     Route::post('/auth/logout',          [AuthController::class, 'logout']);

@@ -123,7 +123,7 @@ class VerificationController extends Controller
         ]);
 
         // Create auth token
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $token = $user->createToken('auth_token', ['*'], now()->addDays(30))->plainTextToken;
 
         $response = [
             'message' => 'Verification successful.',

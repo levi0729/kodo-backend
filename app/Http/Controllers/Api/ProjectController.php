@@ -7,6 +7,7 @@ use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
 use App\Http\Resources\ProjectResource;
 use App\Models\ActivityLog;
+use App\Models\Participant;
 use App\Models\Project;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,12 +18,19 @@ class ProjectController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Project::with('owner')
-            ->withCount(['tasks', 'teams']);
+        $userId = Auth::id();
 
-        if ($request->boolean('mine_only')) {
-            $query->where('owner_id', Auth::id());
-        }
+        // Only show projects the user owns or is a participant of
+        $participantProjectIds = Participant::where('entity_type', 'project')
+            ->where('user_id', $userId)
+            ->pluck('entity_id');
+
+        $query = Project::with('owner')
+            ->withCount(['tasks', 'teams'])
+            ->where(function ($q) use ($userId, $participantProjectIds) {
+                $q->where('owner_id', $userId)
+                  ->orWhereIn('id', $participantProjectIds);
+            });
 
         if ($status = $request->query('status')) {
             $query->where('status', $status);
@@ -67,6 +75,17 @@ class ProjectController extends Controller
 
     public function show(Project $project): JsonResponse
     {
+        $userId = Auth::id();
+        $isMember = $project->owner_id === $userId
+            || Participant::where('entity_type', 'project')
+                ->where('entity_id', $project->id)
+                ->where('user_id', $userId)
+                ->exists();
+
+        if (! $isMember) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $project->load(['owner', 'teams.owner', 'tasks']);
         $project->loadCount(['tasks', 'teams']);
 

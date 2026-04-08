@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ActivityLogResource;
 use App\Models\ActivityLog;
+use App\Models\Participant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -36,7 +37,7 @@ class ActivityLogController extends Controller
         }
 
         $logs = $query->orderByDesc('created_at')
-            ->paginate($request->query('per_page', 30));
+            ->paginate(min((int) $request->query('per_page', 30), 100));
 
         return response()->json([
             'activity_logs' => ActivityLogResource::collection($logs),
@@ -54,11 +55,21 @@ class ActivityLogController extends Controller
      */
     public function forProject(int $projectId, Request $request): JsonResponse
     {
+        // Verify the user is a member of this project
+        $isMember = Participant::where('entity_type', 'project')
+            ->where('entity_id', $projectId)
+            ->where('user_id', Auth::id())
+            ->exists();
+
+        if (! $isMember) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $logs = ActivityLog::with('user')
             ->where('target_type', 'project')
             ->where('target_id', $projectId)
             ->orderByDesc('created_at')
-            ->paginate($request->query('per_page', 30));
+            ->paginate(min((int) $request->query('per_page', 30), 100));
 
         return response()->json([
             'activity_logs' => ActivityLogResource::collection($logs),
@@ -71,13 +82,34 @@ class ActivityLogController extends Controller
     }
 
     /**
-     * Global feed — recent activity across all users (for dashboards).
+     * Feed — recent activity scoped to the user's teams and projects.
      */
     public function feed(Request $request): JsonResponse
     {
+        $userId = Auth::id();
+
+        // Get the user's project and team IDs
+        $projectIds = Participant::where('entity_type', 'project')
+            ->where('user_id', $userId)->pluck('entity_id');
+        $teamIds = Participant::where('entity_type', 'team')
+            ->where('user_id', $userId)->pluck('entity_id');
+
+        $perPage = min((int) $request->query('per_page', 50), 100);
+
         $logs = ActivityLog::with('user')
+            ->where(function ($q) use ($userId, $projectIds, $teamIds) {
+                $q->where('user_id', $userId)
+                  ->orWhere(function ($q2) use ($projectIds) {
+                      $q2->where('target_type', 'project')
+                         ->whereIn('target_id', $projectIds);
+                  })
+                  ->orWhere(function ($q2) use ($teamIds) {
+                      $q2->where('target_type', 'team')
+                         ->whereIn('target_id', $teamIds);
+                  });
+            })
             ->orderByDesc('created_at')
-            ->paginate($request->query('per_page', 50));
+            ->paginate($perPage);
 
         return response()->json([
             'feed' => ActivityLogResource::collection($logs),

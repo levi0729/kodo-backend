@@ -101,18 +101,33 @@ class ChatController extends Controller
         $userId = Auth::id();
         $sinceId = (int) $request->query('since_id', 0);
 
+        // Verify access to the room
+        if ($roomId < 100000) {
+            $isMember = Participant::where('entity_type', 'team')
+                ->where('entity_id', $roomId)
+                ->where('user_id', $userId)
+                ->exists();
+            if (! $isMember) {
+                abort(403, 'You are not a member of this team.');
+            }
+        } else {
+            $otherUserId = $roomId % 100000;
+            $minUserId   = (int) (($roomId - $otherUserId) / 100000);
+            if ($userId !== $otherUserId && $userId !== $minUserId) {
+                abort(403, 'You are not part of this conversation.');
+            }
+        }
+
         $query = ChatRoom::where('room_id', $roomId)
             ->where('id', '>', $sinceId)
             ->where('is_deleted', false);
 
         if ($roomId >= 100000) {
-            // DM — only show messages involving the user
             $query->where(function ($q) use ($userId) {
                 $q->where('sender_id', $userId)
                   ->orWhere('receiver_id', $userId);
             });
         }
-        // Team rooms (room_id < 100000) — show all messages
 
         $messages = $query->with(['sender', 'receiver'])
             ->orderBy('created_at')
@@ -129,7 +144,15 @@ class ChatController extends Controller
         $senderId = Auth::id();
 
         if ($request->team_id) {
-            // Team message — room_id = team_id, receiver_id = sender_id (self-ref to satisfy FK)
+            // Team message — verify membership
+            $isMember = Participant::where('entity_type', 'team')
+                ->where('entity_id', (int) $request->team_id)
+                ->where('user_id', $senderId)
+                ->exists();
+            if (! $isMember) {
+                abort(403, 'You are not a member of this team.');
+            }
+
             $roomId     = (int) $request->team_id;
             $receiverId = $senderId;
         } else {
@@ -155,8 +178,27 @@ class ChatController extends Controller
 
     public function markAsRead(int $roomId): JsonResponse
     {
+        $userId = Auth::id();
+
+        // Verify access to the room
+        if ($roomId < 100000) {
+            $isMember = Participant::where('entity_type', 'team')
+                ->where('entity_id', $roomId)
+                ->where('user_id', $userId)
+                ->exists();
+            if (! $isMember) {
+                abort(403, 'You are not a member of this team.');
+            }
+        } else {
+            $otherUserId = $roomId % 100000;
+            $minUserId   = (int) (($roomId - $otherUserId) / 100000);
+            if ($userId !== $otherUserId && $userId !== $minUserId) {
+                abort(403, 'You are not part of this conversation.');
+            }
+        }
+
         ChatRoom::where('room_id', $roomId)
-            ->where('receiver_id', Auth::id())
+            ->where('receiver_id', $userId)
             ->where('is_read', false)
             ->update([
                 'is_read' => true,

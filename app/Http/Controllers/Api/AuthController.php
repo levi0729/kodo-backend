@@ -42,7 +42,7 @@ class AuthController extends Controller
             'notifications_enabled' => true,
         ]);
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $token = $user->createToken('auth_token', ['*'], now()->addDays(30))->plainTextToken;
 
         return response()->json([
             'message' => 'Registration successful.',
@@ -84,15 +84,13 @@ class AuthController extends Controller
             if ($attempts >= 5) {
                 $update['locked_until'] = now()->addMinutes(15);
                 $update['failed_login_attempts'] = 0;
+                $user->update($update);
+                return response()->json(['message' => 'Account locked for 15 minutes due to too many failed attempts.'], 423);
             }
 
             $user->update($update);
 
-            $remaining = 5 - $attempts;
-            if ($remaining > 0) {
-                return response()->json(['message' => "Invalid credentials. {$remaining} attempts remaining."], 401);
-            }
-            return response()->json(['message' => 'Account locked for 15 minutes due to too many failed attempts.'], 423);
+            return response()->json(['message' => 'Invalid credentials.'], 401);
         }
 
         // Check if device is trusted (skip verification)
@@ -113,7 +111,7 @@ class AuthController extends Controller
                     'last_seen_at'          => now(),
                 ]);
 
-                $token = $user->createToken('auth_token')->plainTextToken;
+                $token = $user->createToken('auth_token', ['*'], now()->addDays(30))->plainTextToken;
 
                 return response()->json([
                     'message' => 'Login successful.',

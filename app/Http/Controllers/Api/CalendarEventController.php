@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\CalendarEvent;
+use App\Models\Participant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,7 +13,19 @@ class CalendarEventController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = CalendarEvent::with(['organizer', 'attendees']);
+        $userId = Auth::id();
+
+        // User's team IDs for scoping
+        $teamIds = Participant::where('entity_type', 'team')
+            ->where('user_id', $userId)
+            ->pluck('entity_id');
+
+        $query = CalendarEvent::with(['organizer', 'attendees'])
+            ->where(function ($q) use ($userId, $teamIds) {
+                $q->where('organizer_id', $userId)
+                  ->orWhereIn('team_id', $teamIds)
+                  ->orWhereHas('attendees', fn ($sub) => $sub->where('users.id', $userId));
+            });
 
         if ($request->filled('team_id') && $request->query('team_id') !== 'undefined') {
             $query->where('team_id', (int) $request->query('team_id'));
@@ -100,6 +113,10 @@ class CalendarEventController extends Controller
 
     public function update(Request $request, CalendarEvent $calendarEvent): JsonResponse
     {
+        if ($calendarEvent->organizer_id !== Auth::id()) {
+            return response()->json(['message' => 'Only the organizer can edit this event.'], 403);
+        }
+
         $data = $request->validate([
             'title'             => ['sometimes', 'string', 'max:200'],
             'description'       => ['nullable', 'string'],

@@ -12,6 +12,29 @@ use Illuminate\Support\Facades\Auth;
 class ParticipantController extends Controller
 {
     /**
+     * Check if the authenticated user is an admin or owner of the given entity.
+     */
+    private function isAdminOrOwner(string $entityType, int $entityId): bool
+    {
+        return Participant::where('entity_type', $entityType)
+            ->where('entity_id', $entityId)
+            ->where('user_id', Auth::id())
+            ->whereIn('role', ['admin', 'owner'])
+            ->exists();
+    }
+
+    /**
+     * Check if the authenticated user is a member of the given entity.
+     */
+    private function isMember(string $entityType, int $entityId): bool
+    {
+        return Participant::where('entity_type', $entityType)
+            ->where('entity_id', $entityId)
+            ->where('user_id', Auth::id())
+            ->exists();
+    }
+
+    /**
      * List members of a project or team.
      */
     public function index(Request $request): JsonResponse
@@ -20,6 +43,10 @@ class ParticipantController extends Controller
             'entity_type' => ['required', 'string', 'in:project,team'],
             'entity_id'   => ['required', 'integer'],
         ]);
+
+        if (! $this->isMember($request->entity_type, $request->entity_id)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
 
         $participants = Participant::with('user')
             ->where('entity_type', $request->entity_type)
@@ -46,6 +73,10 @@ class ParticipantController extends Controller
             'user_id'     => ['required', 'exists:users,id'],
             'role'        => ['sometimes', 'string', 'max:255'],
         ]);
+
+        if (! $this->isAdminOrOwner($request->entity_type, $request->entity_id)) {
+            return response()->json(['message' => 'Forbidden. Only admins or owners can add participants.'], 403);
+        }
 
         $exists = Participant::where('entity_type', $request->entity_type)
             ->where('entity_id', $request->entity_id)
@@ -88,6 +119,10 @@ class ParticipantController extends Controller
             'role'        => ['required', 'string', 'max:255'],
         ]);
 
+        if (! $this->isAdminOrOwner($request->entity_type, $request->entity_id)) {
+            return response()->json(['message' => 'Forbidden. Only admins or owners can change roles.'], 403);
+        }
+
         $participant = Participant::where('entity_type', $request->entity_type)
             ->where('entity_id', $request->entity_id)
             ->where('user_id', $request->user_id)
@@ -110,6 +145,10 @@ class ParticipantController extends Controller
             'entity_id'   => ['required', 'integer'],
             'user_id'     => ['required', 'exists:users,id'],
         ]);
+
+        if (! $this->isAdminOrOwner($request->entity_type, $request->entity_id)) {
+            return response()->json(['message' => 'Forbidden. Only admins or owners can remove participants.'], 403);
+        }
 
         $deleted = Participant::where('entity_type', $request->entity_type)
             ->where('entity_id', $request->entity_id)

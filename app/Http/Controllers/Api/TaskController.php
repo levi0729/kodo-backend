@@ -7,6 +7,7 @@ use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\UpdateTaskRequest;
 use App\Http\Resources\TaskResource;
 use App\Models\ActivityLog;
+use App\Models\Participant;
 use App\Models\Task;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,9 +15,57 @@ use Illuminate\Support\Facades\Auth;
 
 class TaskController extends Controller
 {
+    /**
+     * Check if the authenticated user can access a task (member of its project or team, or creator/assignee).
+     */
+    private function canAccessTask(Task $task): bool
+    {
+        $userId = Auth::id();
+
+        if ($task->created_by === $userId) {
+            return true;
+        }
+
+        if ($task->assignees()->where('users.id', $userId)->exists()) {
+            return true;
+        }
+
+        if ($task->project_id) {
+            $isMember = Participant::where('entity_type', 'project')
+                ->where('entity_id', $task->project_id)
+                ->where('user_id', $userId)
+                ->exists();
+            if ($isMember) return true;
+        }
+
+        if ($task->team_id) {
+            $isMember = Participant::where('entity_type', 'team')
+                ->where('entity_id', $task->team_id)
+                ->where('user_id', $userId)
+                ->exists();
+            if ($isMember) return true;
+        }
+
+        return false;
+    }
+
     public function index(Request $request): JsonResponse
     {
-        $query = Task::with(['project', 'team', 'creator']);
+        $userId = Auth::id();
+
+        // Get IDs of projects and teams the user belongs to
+        $projectIds = Participant::where('entity_type', 'project')
+            ->where('user_id', $userId)->pluck('entity_id');
+        $teamIds = Participant::where('entity_type', 'team')
+            ->where('user_id', $userId)->pluck('entity_id');
+
+        $query = Task::with(['project', 'team', 'creator'])
+            ->where(function ($q) use ($userId, $projectIds, $teamIds) {
+                $q->whereIn('project_id', $projectIds)
+                  ->orWhereIn('team_id', $teamIds)
+                  ->orWhere('created_by', $userId)
+                  ->orWhereHas('assignees', fn ($sub) => $sub->where('users.id', $userId));
+            });
 
         if ($projectId = $request->query('project_id')) {
             $query->where('project_id', $projectId);
@@ -86,6 +135,10 @@ class TaskController extends Controller
 
     public function show(Task $task): JsonResponse
     {
+        if (! $this->canAccessTask($task)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $task->load(['project', 'team', 'creator', 'assignees']);
 
         return response()->json([
@@ -95,6 +148,10 @@ class TaskController extends Controller
 
     public function update(UpdateTaskRequest $request, Task $task): JsonResponse
     {
+        if (! $this->canAccessTask($task)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $data = $request->validated();
 
         // Auto-set completed_at when status changes to done
@@ -137,6 +194,10 @@ class TaskController extends Controller
 
     public function destroy(Task $task): JsonResponse
     {
+        if (! $this->canAccessTask($task)) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $task->delete();
 
         ActivityLog::create([
@@ -160,12 +221,16 @@ class TaskController extends Controller
         ]);
 
         foreach ($request->tasks as $taskData) {
+            $task = Task::find($taskData['id']);
+            if (! $task || ! $this->canAccessTask($task)) {
+                continue;
+            }
             $updateData = ['status' => $taskData['status']];
             if ($taskData['status'] === 'done') {
                 $updateData['completed_at'] = now();
                 $updateData['progress'] = 100;
             }
-            Task::where('id', $taskData['id'])->update($updateData);
+            $task->update($updateData);
         }
 
         return response()->json([

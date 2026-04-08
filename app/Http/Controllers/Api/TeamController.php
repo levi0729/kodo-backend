@@ -19,8 +19,20 @@ class TeamController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
+        $userId = Auth::id();
+
+        // Only show teams the user is a member of, or public teams
+        $memberTeamIds = Participant::where('entity_type', 'team')
+            ->where('user_id', $userId)
+            ->pluck('entity_id');
+
         $query = Team::with('owner', 'project', 'participants')
-            ->withCount('tasks');
+            ->withCount('tasks')
+            ->where(function ($q) use ($userId, $memberTeamIds) {
+                $q->whereIn('id', $memberTeamIds)
+                  ->orWhere('owner_id', $userId)
+                  ->orWhere('is_private', false);
+            });
 
         if ($projectId = $request->query('project_id')) {
             $query->where('project_id', $projectId);
@@ -164,6 +176,12 @@ class TeamController extends Controller
 
     public function leave(Team $team): JsonResponse
     {
+        if ($team->owner_id === Auth::id()) {
+            return response()->json([
+                'message' => 'Team owners cannot leave. Transfer ownership first.',
+            ], 403);
+        }
+
         $deleted = Participant::where('entity_id', $team->id)
             ->where('entity_type', 'team')
             ->where('user_id', Auth::id())
