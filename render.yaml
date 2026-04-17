@@ -3,7 +3,6 @@ services:
     name: kodo-api
     runtime: docker
     plan: free
-    healthCheckPath: /api/health
     envVars:
       - key: APP_NAME
         value: Kodo

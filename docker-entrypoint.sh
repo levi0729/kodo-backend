@@ -76,9 +76,9 @@ if [ ! -L /app/public/storage ]; then
     php artisan storage:link || true
 fi
 
-# Cache config and routes for production performance
+# Cache config for production performance; clear route cache (closure routes can't be cached)
 php artisan config:cache
-php artisan route:cache
+php artisan route:clear
 
 # Start the server
 exec php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
