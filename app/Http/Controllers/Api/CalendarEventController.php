@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CalendarEvent;
 use App\Models\Participant;
+use App\Models\Team;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,10 +16,12 @@ class CalendarEventController extends Controller
     {
         $userId = Auth::id();
 
-        // User's team IDs for scoping
+        // User's team IDs for scoping (participants + owned teams)
         $teamIds = Participant::where('entity_type', 'team')
             ->where('user_id', $userId)
-            ->pluck('entity_id');
+            ->pluck('entity_id')
+            ->merge(Team::where('owner_id', $userId)->pluck('id'))
+            ->unique();
 
         $query = CalendarEvent::with(['organizer', 'attendees'])
             ->where(function ($q) use ($userId, $teamIds) {

@@ -88,11 +88,15 @@ class ActivityLogController extends Controller
     {
         $userId = Auth::id();
 
-        // Get the user's project and team IDs
+        // Get the user's project and team IDs (participants + owned)
         $projectIds = Participant::where('entity_type', 'project')
-            ->where('user_id', $userId)->pluck('entity_id');
+            ->where('user_id', $userId)->pluck('entity_id')
+            ->merge(\App\Models\Project::where('owner_id', $userId)->pluck('id'))
+            ->unique();
         $teamIds = Participant::where('entity_type', 'team')
-            ->where('user_id', $userId)->pluck('entity_id');
+            ->where('user_id', $userId)->pluck('entity_id')
+            ->merge(\App\Models\Team::where('owner_id', $userId)->pluck('id'))
+            ->unique();
 
         $perPage = min((int) $request->query('per_page', 50), 100);
 

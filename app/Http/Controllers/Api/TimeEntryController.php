@@ -25,7 +25,8 @@ class TimeEntryController extends Controller
             $isMember = Participant::where('entity_type', 'project')
                 ->where('entity_id', $projectId)
                 ->where('user_id', $userId)
-                ->exists();
+                ->exists()
+                || \App\Models\Project::where('id', $projectId)->where('owner_id', $userId)->exists();
             if (! $isMember) {
                 return response()->json(['message' => 'Forbidden.'], 403);
             }

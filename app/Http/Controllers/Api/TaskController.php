@@ -8,7 +8,9 @@ use App\Http\Requests\UpdateTaskRequest;
 use App\Http\Resources\TaskResource;
 use App\Models\ActivityLog;
 use App\Models\Participant;
+use App\Models\Project;
 use App\Models\Task;
+use App\Models\Team;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -34,7 +36,8 @@ class TaskController extends Controller
             $isMember = Participant::where('entity_type', 'project')
                 ->where('entity_id', $task->project_id)
                 ->where('user_id', $userId)
-                ->exists();
+                ->exists()
+                || Project::where('id', $task->project_id)->where('owner_id', $userId)->exists();
             if ($isMember) return true;
         }
 
@@ -42,7 +45,8 @@ class TaskController extends Controller
             $isMember = Participant::where('entity_type', 'team')
                 ->where('entity_id', $task->team_id)
                 ->where('user_id', $userId)
-                ->exists();
+                ->exists()
+                || Team::where('id', $task->team_id)->where('owner_id', $userId)->exists();
             if ($isMember) return true;
         }
 
@@ -53,11 +57,15 @@ class TaskController extends Controller
     {
         $userId = Auth::id();
 
-        // Get IDs of projects and teams the user belongs to
+        // Get IDs of projects and teams the user belongs to (participants + owned)
         $projectIds = Participant::where('entity_type', 'project')
-            ->where('user_id', $userId)->pluck('entity_id');
+            ->where('user_id', $userId)->pluck('entity_id')
+            ->merge(Project::where('owner_id', $userId)->pluck('id'))
+            ->unique();
         $teamIds = Participant::where('entity_type', 'team')
-            ->where('user_id', $userId)->pluck('entity_id');
+            ->where('user_id', $userId)->pluck('entity_id')
+            ->merge(Team::where('owner_id', $userId)->pluck('id'))
+            ->unique();
 
         $query = Task::with(['project', 'team', 'creator'])
             ->where(function ($q) use ($userId, $projectIds, $teamIds) {

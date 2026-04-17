@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
 use App\Models\Participant;
+use App\Models\Project;
+use App\Models\Team;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,10 +14,23 @@ use Illuminate\Support\Facades\Auth;
 class ParticipantController extends Controller
 {
     /**
+     * Check if the authenticated user is the entity owner (project.owner_id or team.owner_id).
+     */
+    private function isEntityOwner(string $entityType, int $entityId): bool
+    {
+        $model = $entityType === 'project' ? Project::class : Team::class;
+        return $model::where('id', $entityId)->where('owner_id', Auth::id())->exists();
+    }
+
+    /**
      * Check if the authenticated user is an admin or owner of the given entity.
      */
     private function isAdminOrOwner(string $entityType, int $entityId): bool
     {
+        if ($this->isEntityOwner($entityType, $entityId)) {
+            return true;
+        }
+
         return Participant::where('entity_type', $entityType)
             ->where('entity_id', $entityId)
             ->where('user_id', Auth::id())
@@ -28,6 +43,10 @@ class ParticipantController extends Controller
      */
     private function isMember(string $entityType, int $entityId): bool
     {
+        if ($this->isEntityOwner($entityType, $entityId)) {
+            return true;
+        }
+
         return Participant::where('entity_type', $entityType)
             ->where('entity_id', $entityId)
             ->where('user_id', Auth::id())
