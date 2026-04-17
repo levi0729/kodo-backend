@@ -34,7 +34,7 @@ if [ -z "$APP_KEY" ] || [[ "$APP_KEY" != base64:* ]]; then
     php artisan key:generate --force
 fi
 
-# Run the raw SQL schema directly via PHP (bypasses Laravel migration issues with Neon)
+# Apply the raw SQL schema directly via PHP (safe to re-run: uses IF NOT EXISTS)
 php -r "
 \$host = getenv('DB_HOST');
 \$port = getenv('DB_PORT') ?: '5432';
@@ -52,16 +52,10 @@ if (!\$host || !\$user) {
 \$pdo = new PDO(\$dsn, \$user, \$pass);
 \$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// Check if schema already exists (users table = marker)
-\$exists = \$pdo->query(\"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')\")->fetchColumn();
-if (!\$exists) {
-    echo \"Applying database schema...\n\";
-    \$sql = file_get_contents('/app/database/schema.sql');
-    \$pdo->exec(\$sql);
-    echo \"Schema applied successfully.\n\";
-} else {
-    echo \"Schema already exists, skipping.\n\";
-}
+echo \"Applying database schema (IF NOT EXISTS)...\n\";
+\$sql = file_get_contents('/app/database/schema.sql');
+\$pdo->exec(\$sql);
+echo \"Schema applied successfully.\n\";
 "
 
 # Seed only if the users table is empty (first deploy)

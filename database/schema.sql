@@ -17,7 +17,7 @@ $$ LANGUAGE plpgsql;
 -- 1. CORE USER MANAGEMENT
 -- ============================================================================
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) NOT NULL,
     username VARCHAR(100) NOT NULL,
@@ -60,14 +60,14 @@ CREATE TABLE users (
     CONSTRAINT uk_users_username UNIQUE (username)
 );
 
-CREATE INDEX idx_users_presence ON users(presence_status);
+CREATE INDEX IF NOT EXISTS idx_users_presence ON users(presence_status);
 
-CREATE TRIGGER trg_users_updated_at
+CREATE OR REPLACE TRIGGER trg_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Laravel Sanctum personal access tokens
-CREATE TABLE personal_access_tokens (
+CREATE TABLE IF NOT EXISTS personal_access_tokens (
     id BIGSERIAL PRIMARY KEY,
     tokenable_type VARCHAR(255) NOT NULL,
     tokenable_id BIGINT NOT NULL,
@@ -80,13 +80,13 @@ CREATE TABLE personal_access_tokens (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_pat_tokenable ON personal_access_tokens(tokenable_type, tokenable_id);
+CREATE INDEX IF NOT EXISTS idx_pat_tokenable ON personal_access_tokens(tokenable_type, tokenable_id);
 
 -- ============================================================================
 -- 2. ORGANIZATION & WORKSPACE
 -- ============================================================================
 
-CREATE TABLE organizations (
+CREATE TABLE IF NOT EXISTS organizations (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(100) NOT NULL,
@@ -106,7 +106,7 @@ CREATE TABLE organizations (
     CONSTRAINT uk_organizations_slug UNIQUE (slug)
 );
 
-CREATE TRIGGER trg_organizations_updated_at
+CREATE OR REPLACE TRIGGER trg_organizations_updated_at
     BEFORE UPDATE ON organizations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -114,7 +114,7 @@ CREATE TRIGGER trg_organizations_updated_at
 -- 3. PROJECTS
 -- ============================================================================
 
-CREATE TABLE projects (
+CREATE TABLE IF NOT EXISTS projects (
     id SERIAL PRIMARY KEY,
     organization_id INT,
     name VARCHAR(255) NOT NULL,
@@ -140,10 +140,10 @@ CREATE TABLE projects (
     CONSTRAINT fk_projects_org FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_projects_owner ON projects(owner_id);
-CREATE INDEX idx_projects_status ON projects(status);
+CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects(owner_id);
+CREATE INDEX IF NOT EXISTS idx_projects_status ON projects(status);
 
-CREATE TRIGGER trg_projects_updated_at
+CREATE OR REPLACE TRIGGER trg_projects_updated_at
     BEFORE UPDATE ON projects
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -151,7 +151,7 @@ CREATE TRIGGER trg_projects_updated_at
 -- 4. TEAMS
 -- ============================================================================
 
-CREATE TABLE teams (
+CREATE TABLE IF NOT EXISTS teams (
     id SERIAL PRIMARY KEY,
     organization_id INT,
     project_id INT,
@@ -178,15 +178,15 @@ CREATE TABLE teams (
     CONSTRAINT fk_teams_archived_by FOREIGN KEY (archived_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_teams_project ON teams(project_id);
-CREATE INDEX idx_teams_visibility ON teams(visibility);
+CREATE INDEX IF NOT EXISTS idx_teams_project ON teams(project_id);
+CREATE INDEX IF NOT EXISTS idx_teams_visibility ON teams(visibility);
 
-CREATE TRIGGER trg_teams_updated_at
+CREATE OR REPLACE TRIGGER trg_teams_updated_at
     BEFORE UPDATE ON teams
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Team members
-CREATE TABLE team_members (
+CREATE TABLE IF NOT EXISTS team_members (
     id SERIAL PRIMARY KEY,
     team_id INT NOT NULL,
     user_id INT NOT NULL,
@@ -205,13 +205,13 @@ CREATE TABLE team_members (
     CONSTRAINT fk_team_members_invited FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_team_members_user ON team_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_user ON team_members(user_id);
 
 -- ============================================================================
 -- 5. CHANNELS
 -- ============================================================================
 
-CREATE TABLE channels (
+CREATE TABLE IF NOT EXISTS channels (
     id SERIAL PRIMARY KEY,
     team_id INT NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -233,9 +233,9 @@ CREATE TABLE channels (
     CONSTRAINT fk_channels_creator FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
-CREATE INDEX idx_channels_team ON channels(team_id);
+CREATE INDEX IF NOT EXISTS idx_channels_team ON channels(team_id);
 
-CREATE TRIGGER trg_channels_updated_at
+CREATE OR REPLACE TRIGGER trg_channels_updated_at
     BEFORE UPDATE ON channels
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -243,7 +243,7 @@ CREATE TRIGGER trg_channels_updated_at
 -- 6. DIRECT MESSAGES (Simple chat rooms used by backend)
 -- ============================================================================
 
-CREATE TABLE chat_rooms (
+CREATE TABLE IF NOT EXISTS chat_rooms (
     id SERIAL PRIMARY KEY,
     room_id BIGINT NOT NULL,
     sender_id INT NOT NULL,
@@ -262,16 +262,16 @@ CREATE TABLE chat_rooms (
     CONSTRAINT fk_chatrooms_receiver FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_chatrooms_room ON chat_rooms(room_id);
-CREATE INDEX idx_chatrooms_sender ON chat_rooms(sender_id);
-CREATE INDEX idx_chatrooms_receiver ON chat_rooms(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_chatrooms_room ON chat_rooms(room_id);
+CREATE INDEX IF NOT EXISTS idx_chatrooms_sender ON chat_rooms(sender_id);
+CREATE INDEX IF NOT EXISTS idx_chatrooms_receiver ON chat_rooms(receiver_id);
 
-CREATE TRIGGER trg_chat_rooms_updated_at
+CREATE OR REPLACE TRIGGER trg_chat_rooms_updated_at
     BEFORE UPDATE ON chat_rooms
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Reactions on chat_rooms messages (emoji, one row per user+emoji per message)
-CREATE TABLE chat_room_reactions (
+CREATE TABLE IF NOT EXISTS chat_room_reactions (
     id SERIAL PRIMARY KEY,
     chat_room_id INT NOT NULL,
     user_id INT NOT NULL,
@@ -283,10 +283,10 @@ CREATE TABLE chat_room_reactions (
     CONSTRAINT fk_chat_room_reactions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_chat_room_reactions_room ON chat_room_reactions(chat_room_id);
+CREATE INDEX IF NOT EXISTS idx_chat_room_reactions_room ON chat_room_reactions(chat_room_id);
 
 -- Attachments on chat_rooms messages (file metadata keyed to a chat_rooms row)
-CREATE TABLE chat_room_attachments (
+CREATE TABLE IF NOT EXISTS chat_room_attachments (
     id SERIAL PRIMARY KEY,
     chat_room_id INT NOT NULL,
     uploaded_by INT NOT NULL,
@@ -302,10 +302,10 @@ CREATE TABLE chat_room_attachments (
     CONSTRAINT fk_chat_room_attachments_user FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_chat_room_attachments_room ON chat_room_attachments(chat_room_id);
+CREATE INDEX IF NOT EXISTS idx_chat_room_attachments_room ON chat_room_attachments(chat_room_id);
 
 -- Conversations (group chats - future use)
-CREATE TABLE conversations (
+CREATE TABLE IF NOT EXISTS conversations (
     id SERIAL PRIMARY KEY,
     conversation_type VARCHAR(10) DEFAULT 'direct'
         CHECK (conversation_type IN ('direct','group')),
@@ -318,11 +318,11 @@ CREATE TABLE conversations (
     CONSTRAINT fk_conversations_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE TRIGGER trg_conversations_updated_at
+CREATE OR REPLACE TRIGGER trg_conversations_updated_at
     BEFORE UPDATE ON conversations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TABLE conversation_participants (
+CREATE TABLE IF NOT EXISTS conversation_participants (
     id SERIAL PRIMARY KEY,
     conversation_id INT NOT NULL,
     user_id INT NOT NULL,
@@ -339,13 +339,13 @@ CREATE TABLE conversation_participants (
     CONSTRAINT fk_conv_participants_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_conv_participants_user ON conversation_participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_conv_participants_user ON conversation_participants(user_id);
 
 -- ============================================================================
 -- 7. MESSAGING SYSTEM (Channel messages - future use)
 -- ============================================================================
 
-CREATE TABLE messages (
+CREATE TABLE IF NOT EXISTS messages (
     id SERIAL PRIMARY KEY,
     channel_id INT,
     conversation_id INT,
@@ -372,16 +372,16 @@ CREATE TABLE messages (
     CONSTRAINT fk_messages_sender FOREIGN KEY (sender_id) REFERENCES users(id)
 );
 
-CREATE INDEX idx_messages_channel ON messages(channel_id, created_at);
-CREATE INDEX idx_messages_conversation ON messages(conversation_id, created_at);
-CREATE INDEX idx_messages_thread ON messages(parent_message_id);
-CREATE INDEX idx_messages_sender ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(parent_message_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
 
 -- Full-text search index (PostgreSQL GIN)
-CREATE INDEX idx_messages_content_fts ON messages USING GIN (to_tsvector('hungarian', COALESCE(content, '')));
+CREATE INDEX IF NOT EXISTS idx_messages_content_fts ON messages USING GIN (to_tsvector('hungarian', COALESCE(content, '')));
 
 -- Message attachments
-CREATE TABLE message_attachments (
+CREATE TABLE IF NOT EXISTS message_attachments (
     id SERIAL PRIMARY KEY,
     message_id INT NOT NULL,
     file_name VARCHAR(255) NOT NULL,
@@ -399,10 +399,10 @@ CREATE TABLE message_attachments (
     CONSTRAINT fk_attachments_uploader FOREIGN KEY (uploaded_by) REFERENCES users(id)
 );
 
-CREATE INDEX idx_attachments_message ON message_attachments(message_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_message ON message_attachments(message_id);
 
 -- Message reactions
-CREATE TABLE message_reactions (
+CREATE TABLE IF NOT EXISTS message_reactions (
     id SERIAL PRIMARY KEY,
     message_id INT NOT NULL,
     user_id INT NOT NULL,
@@ -414,10 +414,10 @@ CREATE TABLE message_reactions (
     CONSTRAINT fk_reactions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_reactions_message ON message_reactions(message_id);
+CREATE INDEX IF NOT EXISTS idx_reactions_message ON message_reactions(message_id);
 
 -- Message mentions
-CREATE TABLE message_mentions (
+CREATE TABLE IF NOT EXISTS message_mentions (
     id SERIAL PRIMARY KEY,
     message_id INT NOT NULL,
     mention_type VARCHAR(20) NOT NULL
@@ -428,14 +428,14 @@ CREATE TABLE message_mentions (
     CONSTRAINT fk_mentions_message FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_mentions_message ON message_mentions(message_id);
+CREATE INDEX IF NOT EXISTS idx_mentions_message ON message_mentions(message_id);
 
 -- ============================================================================
 -- 8. TASK MANAGEMENT
 -- ============================================================================
 
 -- Task buckets (Kanban columns)
-CREATE TABLE task_buckets (
+CREATE TABLE IF NOT EXISTS task_buckets (
     id SERIAL PRIMARY KEY,
     project_id INT NOT NULL,
     name VARCHAR(100) NOT NULL,
@@ -448,10 +448,10 @@ CREATE TABLE task_buckets (
     CONSTRAINT fk_buckets_project FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_buckets_project ON task_buckets(project_id);
+CREATE INDEX IF NOT EXISTS idx_buckets_project ON task_buckets(project_id);
 
 -- Tasks
-CREATE TABLE tasks (
+CREATE TABLE IF NOT EXISTS tasks (
     id SERIAL PRIMARY KEY,
     project_id INT NOT NULL,
     team_id INT,
@@ -484,19 +484,19 @@ CREATE TABLE tasks (
     CONSTRAINT fk_tasks_creator FOREIGN KEY (created_by) REFERENCES users(id)
 );
 
-CREATE INDEX idx_tasks_project ON tasks(project_id);
-CREATE INDEX idx_tasks_team ON tasks(team_id);
-CREATE INDEX idx_tasks_bucket ON tasks(bucket_id);
-CREATE INDEX idx_tasks_status ON tasks(status);
-CREATE INDEX idx_tasks_due_date ON tasks(due_date);
-CREATE INDEX idx_tasks_parent ON tasks(parent_task_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_team ON tasks(team_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_bucket ON tasks(bucket_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
 
-CREATE TRIGGER trg_tasks_updated_at
+CREATE OR REPLACE TRIGGER trg_tasks_updated_at
     BEFORE UPDATE ON tasks
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Task assignees
-CREATE TABLE task_assignees (
+CREATE TABLE IF NOT EXISTS task_assignees (
     id SERIAL PRIMARY KEY,
     task_id INT NOT NULL,
     user_id INT NOT NULL,
@@ -509,10 +509,10 @@ CREATE TABLE task_assignees (
     CONSTRAINT fk_task_assignees_by FOREIGN KEY (assigned_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_task_assignees_user ON task_assignees(user_id);
+CREATE INDEX IF NOT EXISTS idx_task_assignees_user ON task_assignees(user_id);
 
 -- Task checklists
-CREATE TABLE task_checklists (
+CREATE TABLE IF NOT EXISTS task_checklists (
     id SERIAL PRIMARY KEY,
     task_id INT NOT NULL,
     title VARCHAR(255) NOT NULL,
@@ -522,10 +522,10 @@ CREATE TABLE task_checklists (
     CONSTRAINT fk_task_checklists_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_task_checklists_task ON task_checklists(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_checklists_task ON task_checklists(task_id);
 
 -- Task checklist items
-CREATE TABLE task_checklist_items (
+CREATE TABLE IF NOT EXISTS task_checklist_items (
     id SERIAL PRIMARY KEY,
     checklist_id INT NOT NULL,
     title VARCHAR(500) NOT NULL,
@@ -539,13 +539,13 @@ CREATE TABLE task_checklist_items (
     CONSTRAINT fk_checklist_items_completed_by FOREIGN KEY (completed_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_checklist_items_checklist ON task_checklist_items(checklist_id);
+CREATE INDEX IF NOT EXISTS idx_checklist_items_checklist ON task_checklist_items(checklist_id);
 
 -- ============================================================================
 -- 9. CALENDAR & EVENTS
 -- ============================================================================
 
-CREATE TABLE calendar_events (
+CREATE TABLE IF NOT EXISTS calendar_events (
     id SERIAL PRIMARY KEY,
     team_id INT,
     channel_id INT,
@@ -579,16 +579,16 @@ CREATE TABLE calendar_events (
     CONSTRAINT fk_events_parent FOREIGN KEY (parent_event_id) REFERENCES calendar_events(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_events_team ON calendar_events(team_id);
-CREATE INDEX idx_events_organizer ON calendar_events(organizer_id);
-CREATE INDEX idx_events_time ON calendar_events(start_time, end_time);
+CREATE INDEX IF NOT EXISTS idx_events_team ON calendar_events(team_id);
+CREATE INDEX IF NOT EXISTS idx_events_organizer ON calendar_events(organizer_id);
+CREATE INDEX IF NOT EXISTS idx_events_time ON calendar_events(start_time, end_time);
 
-CREATE TRIGGER trg_calendar_events_updated_at
+CREATE OR REPLACE TRIGGER trg_calendar_events_updated_at
     BEFORE UPDATE ON calendar_events
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Event attendees
-CREATE TABLE event_attendees (
+CREATE TABLE IF NOT EXISTS event_attendees (
     id SERIAL PRIMARY KEY,
     event_id INT NOT NULL,
     user_id INT NOT NULL,
@@ -602,13 +602,13 @@ CREATE TABLE event_attendees (
     CONSTRAINT fk_attendees_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_attendees_user ON event_attendees(user_id);
+CREATE INDEX IF NOT EXISTS idx_attendees_user ON event_attendees(user_id);
 
 -- ============================================================================
 -- 10. FILES & DOCUMENTS
 -- ============================================================================
 
-CREATE TABLE files (
+CREATE TABLE IF NOT EXISTS files (
     id SERIAL PRIMARY KEY,
     team_id INT,
     channel_id INT,
@@ -636,10 +636,10 @@ CREATE TABLE files (
     CONSTRAINT fk_files_uploader FOREIGN KEY (uploaded_by) REFERENCES users(id)
 );
 
-CREATE INDEX idx_files_team ON files(team_id);
-CREATE INDEX idx_files_channel ON files(channel_id);
+CREATE INDEX IF NOT EXISTS idx_files_team ON files(team_id);
+CREATE INDEX IF NOT EXISTS idx_files_channel ON files(channel_id);
 
-CREATE TRIGGER trg_files_updated_at
+CREATE OR REPLACE TRIGGER trg_files_updated_at
     BEFORE UPDATE ON files
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -647,7 +647,7 @@ CREATE TRIGGER trg_files_updated_at
 -- 11. NOTIFICATIONS
 -- ============================================================================
 
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     notification_type VARCHAR(50) NOT NULL,
@@ -674,13 +674,13 @@ CREATE TABLE notifications (
     CONSTRAINT fk_notifications_event FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_notifications_user ON notifications(user_id, is_read, created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read, created_at);
 
 -- ============================================================================
 -- 12. USER SETTINGS & PREFERENCES
 -- ============================================================================
 
-CREATE TABLE user_settings (
+CREATE TABLE IF NOT EXISTS user_settings (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     theme VARCHAR(10) DEFAULT 'dark'
@@ -714,7 +714,7 @@ CREATE TABLE user_settings (
     CONSTRAINT fk_user_settings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE TRIGGER trg_user_settings_updated_at
+CREATE OR REPLACE TRIGGER trg_user_settings_updated_at
     BEFORE UPDATE ON user_settings
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -722,7 +722,7 @@ CREATE TRIGGER trg_user_settings_updated_at
 -- 13. TIME TRACKING
 -- ============================================================================
 
-CREATE TABLE time_entries (
+CREATE TABLE IF NOT EXISTS time_entries (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     project_id INT,
@@ -739,10 +739,10 @@ CREATE TABLE time_entries (
     CONSTRAINT fk_time_entries_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_time_entries_user ON time_entries(user_id, date);
-CREATE INDEX idx_time_entries_project ON time_entries(project_id);
+CREATE INDEX IF NOT EXISTS idx_time_entries_user ON time_entries(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_time_entries_project ON time_entries(project_id);
 
-CREATE TRIGGER trg_time_entries_updated_at
+CREATE OR REPLACE TRIGGER trg_time_entries_updated_at
     BEFORE UPDATE ON time_entries
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -750,7 +750,7 @@ CREATE TRIGGER trg_time_entries_updated_at
 -- 14. FRIENDSHIPS
 -- ============================================================================
 
-CREATE TABLE friends (
+CREATE TABLE IF NOT EXISTS friends (
     id SERIAL PRIMARY KEY,
     user_id_1 INT NOT NULL,
     user_id_2 INT NOT NULL,
@@ -765,9 +765,9 @@ CREATE TABLE friends (
     CONSTRAINT chk_friends_not_self CHECK (user_id_1 <> user_id_2)
 );
 
-CREATE INDEX idx_friends_user2 ON friends(user_id_2);
+CREATE INDEX IF NOT EXISTS idx_friends_user2 ON friends(user_id_2);
 
-CREATE TRIGGER trg_friends_updated_at
+CREATE OR REPLACE TRIGGER trg_friends_updated_at
     BEFORE UPDATE ON friends
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
@@ -775,7 +775,7 @@ CREATE TRIGGER trg_friends_updated_at
 -- 15. PARTICIPANTS (Polymorphic project/team membership)
 -- ============================================================================
 
-CREATE TABLE participants (
+CREATE TABLE IF NOT EXISTS participants (
     id SERIAL PRIMARY KEY,
     entity_type VARCHAR(20) NOT NULL CHECK (entity_type IN ('project','team')),
     entity_id INT NOT NULL,
@@ -789,14 +789,14 @@ CREATE TABLE participants (
     CONSTRAINT fk_participants_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_participants_entity ON participants(entity_type, entity_id);
-CREATE INDEX idx_participants_user ON participants(user_id);
+CREATE INDEX IF NOT EXISTS idx_participants_entity ON participants(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_participants_user ON participants(user_id);
 
 -- ============================================================================
 -- 16. ACTIVITY LOGS
 -- ============================================================================
 
-CREATE TABLE activity_logs (
+CREATE TABLE IF NOT EXISTS activity_logs (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     action VARCHAR(100) NOT NULL,
@@ -807,14 +807,14 @@ CREATE TABLE activity_logs (
     CONSTRAINT fk_activity_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_activity_logs_user ON activity_logs(user_id, created_at);
-CREATE INDEX idx_activity_logs_target ON activity_logs(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_target ON activity_logs(target_type, target_id);
 
 -- ============================================================================
 -- 16b. VERIFICATION CODES (2FA login verification)
 -- ============================================================================
 
-CREATE TABLE verification_codes (
+CREATE TABLE IF NOT EXISTS verification_codes (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     code VARCHAR(6) NOT NULL,
@@ -826,13 +826,13 @@ CREATE TABLE verification_codes (
     CONSTRAINT fk_verification_codes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_verification_codes_user ON verification_codes(user_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_verification_codes_user ON verification_codes(user_id, created_at);
 
 -- ============================================================================
 -- 16c. TRUSTED DEVICES (remember device for 30 days)
 -- ============================================================================
 
-CREATE TABLE trusted_devices (
+CREATE TABLE IF NOT EXISTS trusted_devices (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL,
     device_token VARCHAR(255) NOT NULL UNIQUE,
@@ -842,8 +842,8 @@ CREATE TABLE trusted_devices (
     CONSTRAINT fk_trusted_devices_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_trusted_devices_user ON trusted_devices(user_id);
-CREATE INDEX idx_trusted_devices_token ON trusted_devices(device_token);
+CREATE INDEX IF NOT EXISTS idx_trusted_devices_user ON trusted_devices(user_id);
+CREATE INDEX IF NOT EXISTS idx_trusted_devices_token ON trusted_devices(device_token);
 
 -- ============================================================================
 -- 17. USEFUL VIEWS
