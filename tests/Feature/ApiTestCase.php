@@ -220,6 +220,7 @@ abstract class ApiTestCase extends TestCase
         Schema::create('chat_rooms', function ($t) {
             $t->increments('id');
             $t->bigInteger('room_id');
+            $t->string('room_type', 10)->default('dm');
             $t->unsignedInteger('sender_id');
             $t->unsignedInteger('receiver_id');
             $t->text('message');

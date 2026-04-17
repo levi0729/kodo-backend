@@ -16,6 +16,12 @@ use Illuminate\Support\Facades\Auth;
 
 class ChatController extends Controller
 {
+    /**
+     * Multiplier used to build a deterministic DM room ID from two user IDs.
+     * room_id = min(a,b) * DM_ROOM_MULTIPLIER + max(a,b)
+     * Supports user IDs up to ~2 billion (BIGINT safe).
+     */
+    private const DM_ROOM_MULTIPLIER = 1_000_000_000;
     public function conversations(): JsonResponse
     {
         $userId = Auth::id();
@@ -93,7 +99,9 @@ class ChatController extends Controller
             ->where('id', '>', $sinceId)
             ->where('is_deleted', false);
 
-        if ($roomId >= 100000) {
+        // For DM rooms, filter to only messages involving this user
+        $isDm = ChatRoom::where('room_id', $roomId)->where('room_type', 'dm')->exists();
+        if ($isDm) {
             $query->where(function ($q) use ($userId) {
                 $q->where('sender_id', $userId)
                   ->orWhere('receiver_id', $userId);
@@ -122,14 +130,17 @@ class ChatController extends Controller
 
             $roomId     = (int) $request->team_id;
             $receiverId = $senderId;
+            $roomType   = 'team';
         } else {
             // DM — deterministic room_id
             $receiverId = (int) $request->receiver_id;
-            $roomId     = min($senderId, $receiverId) * 100000 + max($senderId, $receiverId);
+            $roomId     = min($senderId, $receiverId) * self::DM_ROOM_MULTIPLIER + max($senderId, $receiverId);
+            $roomType   = 'dm';
         }
 
         $message = ChatRoom::create([
             'room_id'     => $roomId,
+            'room_type'   => $roomType,
             'sender_id'   => $senderId,
             'receiver_id' => $receiverId,
             'message'     => $request->message ?? '',
@@ -270,15 +281,31 @@ class ChatController extends Controller
     private function authorizeRoomAccess(int $roomId): void
     {
         $userId = Auth::id();
-        if ($roomId < 100000) {
+
+        // Determine room type from stored data instead of a magic number threshold
+        $roomType = ChatRoom::where('room_id', $roomId)->value('room_type');
+
+        if ($roomType === 'team' || ($roomType === null && Team::where('id', $roomId)->exists())) {
+            // Team room — check membership
             if (! $this->isTeamMember($roomId, $userId)) {
                 abort(403, 'You are not a member of this team.');
             }
         } else {
-            $otherUserId = $roomId % 100000;
-            $minUserId   = (int) (($roomId - $otherUserId) / 100000);
-            if ($userId !== $otherUserId && $userId !== $minUserId) {
-                abort(403, 'You are not part of this conversation.');
+            // DM room — verify the user is a participant by checking stored messages
+            $isParticipant = ChatRoom::where('room_id', $roomId)
+                ->where(function ($q) use ($userId) {
+                    $q->where('sender_id', $userId)
+                      ->orWhere('receiver_id', $userId);
+                })
+                ->exists();
+
+            // Also accept if user ID is encoded in the room_id (first message case)
+            if (! $isParticipant) {
+                $otherUserId = $roomId % self::DM_ROOM_MULTIPLIER;
+                $minUserId   = intdiv($roomId, self::DM_ROOM_MULTIPLIER);
+                if ($userId !== $otherUserId && $userId !== $minUserId) {
+                    abort(403, 'You are not part of this conversation.');
+                }
             }
         }
     }

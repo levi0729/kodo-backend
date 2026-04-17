@@ -246,6 +246,7 @@ CREATE OR REPLACE TRIGGER trg_channels_updated_at
 CREATE TABLE IF NOT EXISTS chat_rooms (
     id SERIAL PRIMARY KEY,
     room_id BIGINT NOT NULL,
+    room_type VARCHAR(10) NOT NULL DEFAULT 'dm',
     sender_id INT NOT NULL,
     receiver_id INT NOT NULL,
     message TEXT NOT NULL,
