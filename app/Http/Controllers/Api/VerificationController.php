@@ -3,6 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Participant;
+use App\Models\Project;
+use App\Models\Team;
 use App\Models\TrustedDevice;
 use App\Models\User;
 use App\Models\VerificationCode;
@@ -153,6 +156,20 @@ class VerificationController extends Controller
             'presence_status'       => 'online',
             'last_seen_at'          => now(),
         ]);
+
+        // Ensure user belongs to all projects/teams
+        foreach (Project::pluck('id') as $pid) {
+            Participant::firstOrCreate(
+                ['entity_type' => 'project', 'entity_id' => $pid, 'user_id' => $user->id],
+                ['role' => 'member', 'joined_at' => now()]
+            );
+        }
+        foreach (Team::pluck('id') as $tid) {
+            Participant::firstOrCreate(
+                ['entity_type' => 'team', 'entity_id' => $tid, 'user_id' => $user->id],
+                ['role' => 'member', 'joined_at' => now()]
+            );
+        }
 
         // Create auth token
         $token = $user->createToken('auth_token', ['*'], now()->addDays(30))->plainTextToken;
