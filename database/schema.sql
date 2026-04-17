@@ -888,9 +888,10 @@ GROUP BY p.id, p.name;
 -- 18. SEED DATA
 -- ============================================================================
 
--- Default organization
+-- Default organization (skip if already exists)
 INSERT INTO organizations (name, slug, description, plan_type, max_members)
-VALUES ('Kodo Labs', 'kodo-labs', 'Kodo Team Management Platform', 'business', 50);
+VALUES ('Kodo Labs', 'kodo-labs', 'Kodo Team Management Platform', 'business', 50)
+ON CONFLICT (slug) DO NOTHING;
 
 -- ============================================================================
 -- 19. LARAVEL SUPPORT TABLES
