@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\VerificationCode;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -23,6 +24,16 @@ class VerificationController extends Controller
         $request->validate([
             'user_id' => ['required', 'integer', 'exists:users,id'],
         ]);
+
+        // Per-user send-rate limit to prevent email bombing:
+        // max 3 codes per user per 15 minutes (independent of the global IP throttle).
+        $sendKey = "verification_sends:{$request->user_id}";
+        $sends   = (int) Cache::get($sendKey, 0);
+        if ($sends >= 3) {
+            return response()->json([
+                'message' => 'Too many verification emails were requested recently. Please wait a few minutes before trying again.',
+            ], 429);
+        }
 
         $user = User::findOrFail($request->user_id);
 
@@ -71,6 +82,9 @@ class VerificationController extends Controller
             ], 500);
         }
 
+        // Count this send against the per-user rate limit (15-minute rolling window)
+        Cache::put($sendKey, $sends + 1, now()->addMinutes(15));
+
         $response = [
             'message'     => 'Verification code sent.',
             'method'      => 'email',
@@ -96,7 +110,19 @@ class VerificationController extends Controller
             'remember_device' => ['sometimes', 'boolean'],
         ]);
 
-        $user = User::findOrFail($request->user_id);
+        $userId = $request->user_id;
+
+        // Per-user rate limiting: block after 5 failed attempts for 15 minutes
+        $cacheKey = "verification_attempts:{$userId}";
+        $attempts = (int) Cache::get($cacheKey, 0);
+
+        if ($attempts >= 5) {
+            return response()->json([
+                'message' => 'Too many failed verification attempts. Please try again later.',
+            ], 429);
+        }
+
+        $user = User::findOrFail($userId);
 
         $verification = VerificationCode::where('user_id', $user->id)
             ->where('code', $request->code)
@@ -106,10 +132,16 @@ class VerificationController extends Controller
             ->first();
 
         if (!$verification) {
+            // Increment failed attempts counter with 15-minute TTL
+            Cache::put($cacheKey, $attempts + 1, now()->addMinutes(15));
+
             return response()->json([
                 'message' => 'Invalid or expired verification code.',
             ], 422);
         }
+
+        // Reset failed attempts on success
+        Cache::forget($cacheKey);
 
         // Mark code as used
         $verification->update(['used_at' => now()]);

@@ -50,6 +50,11 @@ class CalendarEventController extends Controller
             $data = $event->toArray();
             $data['organizer_id'] = $event->organizer_id;
             $data['attendees'] = $event->attendees->pluck('id')->values();
+            $data['attendee_responses'] = $event->attendees->map(fn ($u) => [
+                'user_id'         => $u->id,
+                'response_status' => $u->pivot->response_status,
+                'responded_at'    => $u->pivot->responded_at,
+            ])->values();
             $data['start_time'] = $event->start_time?->toIso8601String();
             $data['end_time'] = $event->end_time?->toIso8601String();
             return $data;
@@ -157,6 +162,48 @@ class CalendarEventController extends Controller
 
         return response()->json([
             'message' => 'Calendar event deleted.',
+        ]);
+    }
+
+    /**
+     * RSVP to a calendar event.
+     */
+    public function rsvp(Request $request, CalendarEvent $calendarEvent): JsonResponse
+    {
+        $request->validate([
+            'response_status' => ['required', 'string', 'in:accepted,declined,tentative'],
+        ]);
+
+        $userId = Auth::id();
+
+        // Check if the user is an attendee of this event
+        if (!$calendarEvent->attendees()->where('users.id', $userId)->exists()) {
+            return response()->json([
+                'message' => 'You are not an attendee of this event.',
+            ], 403);
+        }
+
+        // Update the attendee's response status
+        $calendarEvent->attendees()->updateExistingPivot($userId, [
+            'response_status' => $request->response_status,
+            'responded_at'    => now(),
+        ]);
+
+        $calendarEvent->load(['organizer', 'attendees']);
+
+        $data = $calendarEvent->toArray();
+        $data['attendees'] = $calendarEvent->attendees->pluck('id')->values();
+        $data['attendee_responses'] = $calendarEvent->attendees->map(fn ($u) => [
+            'user_id'         => $u->id,
+            'response_status' => $u->pivot->response_status,
+            'responded_at'    => $u->pivot->responded_at,
+        ])->values();
+        $data['start_time'] = $calendarEvent->start_time?->toIso8601String();
+        $data['end_time'] = $calendarEvent->end_time?->toIso8601String();
+
+        return response()->json([
+            'message'        => 'RSVP updated.',
+            'calendar_event' => $data,
         ]);
     }
 }

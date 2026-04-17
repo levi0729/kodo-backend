@@ -3,7 +3,7 @@
 **What:** Team/project management app with chat, tasks, calendar, time tracking
 **For:** IKT Exam
 **Stack:** React 18 + Vite | Laravel 12 + Sanctum | PostgreSQL 15+
-**Updated:** 2026-04-15
+**Updated:** 2026-04-16
 
 ---
 
@@ -71,7 +71,7 @@ These are things an examiner could easily spot or that would break the app in a 
 
 ### 2FA can be bypassed
 
-12. [ ] **VerificationController** — the `sendCode` and `verifyCode` endpoints accept any `user_id` without authentication. An attacker can:
+12. [x] **VerificationController** — the `sendCode` and `verifyCode` endpoints accept any `user_id` without authentication. An attacker can:
     - Spam verification emails to any user (email bombing)
     - Try to brute-force the 6-digit code (rate limit is only 10/min)
     - **Fix:** Add failed attempt counter, lock after X failures, don't expose `user_id` in the flow
@@ -157,23 +157,23 @@ The database schema defines these tables, but there are no API endpoints or UI f
 
 33. [ ] **Team channels (`channels`)** — the schema supports different channel types (general, public, private, announcement) but the chat system doesn't use them.
 
-34. [ ] **Message reactions (`message_reactions`)** — the frontend has a reaction UI but it's purely local. The backend table exists but has no API.
+34. [x] **Message reactions (`message_reactions`)** — the frontend has a reaction UI but it's purely local. The backend table exists but has no API.
 
 35. [ ] **Message mentions (`message_mentions`)** — same as reactions. Frontend shows mentions but nothing is saved or delivered.
 
-36. [ ] **File attachments (`message_attachments`)** — full schema for file metadata (size, type, dimensions) but no upload/download API.
+36. [x] **File attachments (`message_attachments`)** — full schema for file metadata (size, type, dimensions) but no upload/download API.
 
 37. [ ] **Group conversations (`conversations` + `conversation_participants`)** — designed for multi-person chats separate from team rooms.
 
 38. [ ] **Organizations (`organizations`)** — workspace management with plan types (free, standard, business, pro, enterprise).
 
-39. [ ] **Calendar RSVP** — the schema has `response_status` on event attendees but no API to accept/decline invitations.
+39. [x] **Calendar RSVP** — the schema has `response_status` on event attendees but no API to accept/decline invitations.
 
 40. [ ] **Most user settings are inaccessible** — the `user_settings` table has 20+ columns but only 7 are exposed through the API. Missing: DND mode, typing indicators, message previews, enter-to-send, etc.
 
-41. [ ] **CalendarEvent model** is missing many fields from `$fillable` that the schema supports: timezone, recurring events, categories, meeting links.
+41. [x] **CalendarEvent model** is missing many fields from `$fillable` that the schema supports: timezone, recurring events, categories, meeting links.
 
-42. [ ] **Friend re-request** — declined friend requests can't be re-sent because the old record blocks new ones.
+42. [x] **Friend re-request** — declined friend requests can't be re-sent because the old record blocks new ones.
 
 ---
 
@@ -232,11 +232,11 @@ If you have time, these would really stand out:
 
 61. [x] **Drag-and-drop Kanban board** — use a library like `@hello-pangea/dnd` to make task columns draggable. Schema already supports it.
 62. [ ] **Real-time messaging with WebSockets** — replace the 3-second polling with Laravel Reverb or Pusher. Instant message delivery.
-63. [ ] **File upload for attachments** — implement real file upload with progress bars and previews.
+63. [x] **File upload for attachments** — implement real file upload with progress bars and previews.
 64. [x] **User profile page with avatar upload** — show user stats, activity, let them upload a photo.
 65. [x] **Search** — the database already has a full-text search index on messages (supports Hungarian!). Build a search bar.
 66. [x] **Data export** — CSV/PDF reports for time tracking or project status.
-67. [ ] **Proper Laravel migrations** — only 1 migration exists. The whole schema is in raw SQL. Converting to migrations shows Laravel mastery.
+67. [x] **Proper Laravel migrations** — only 1 migration exists. The whole schema is in raw SQL. Converting to migrations shows Laravel mastery.
 
 ---
 
@@ -249,6 +249,92 @@ If you have time, these would really stand out:
 72. [x] Create proper `.env.example` files
 73. [x] Remove or integrate the Node.js server (`kodo/server/`)
 74. [ ] Clean up unused npm dependencies
+
+---
+
+## Phase 9 — Frontend Architecture & Polish
+
+These are frontend issues found during a code audit. They aren't visible bugs like Phase 3, but they'll show up during a demo (laggy UI, mobile layout breaks, mixed languages, etc.) and matter for an examiner reviewing the code.
+
+### Component responsibility (god components)
+
+75. [ ] **Messages.jsx is 826 lines** with 19 `useState` hooks mixing team/DM switching, emoji picker, mention popup, friend search, file uploads, and message sending.
+    - **Fix:** Split into `TeamList`, `DMList`, `MessageThread`, `ComposeBox`, `FriendSearchPanel`. Move state into `MessagesContext` where it belongs.
+
+76. [ ] **Calendar.jsx is 851 lines** — the page, the event detail popup, the create/edit modal, and the day/week/month views all live in one file.
+    - **Fix:** Extract `EventDetailPopup`, `EventCreateForm`, and the view renderers into `components/calendar/`.
+
+77. [ ] **Dashboard.jsx is 543 lines** and calls 3 different APIs inline instead of through a context.
+    - **Fix:** Extract `WeeklyChart`, `MiniCalendar`, `TeamMembersWidget` and move data fetching into a `DashboardContext`.
+
+78. [ ] **AuthPage.jsx is 562 lines** with `VerificationScreen` and `ForgotPasswordScreen` defined inside it.
+    - **Fix:** Split into three sibling files so each screen is independently testable.
+
+79. [ ] **Sidebar.jsx is 348 lines** — navigation, project dropdown, create-project modal, status popup, and logout all in one component.
+    - **Fix:** Extract the create-project modal and the status popup into their own components.
+
+### Responsiveness / mobile
+
+80. [ ] **Messages.jsx:312** uses `h-[calc(100dvh-100px)]` with no `min-h` fallback; the layout collapses on older mobile browsers.
+
+81. [ ] **Calendar.jsx:161** — `EventDetailPopup` has `max-w-[380px]` but no mobile padding; popup can bleed past the viewport on phones.
+
+82. [ ] **Calendar.jsx:377** — `EventCreateForm` modal at `max-w-[520px] max-h-[90vh]` leaves no safe margin on iPad portrait.
+
+83. [ ] **Dashboard.jsx:46** — `WeeklyChart` is fixed at `h-[150px] md:h-[190px]` with no scaling for phones under 320px.
+
+84. [ ] **TopBar.jsx:84** — long page titles can truncate without wrap on xs screens because the container has `overflow-hidden`.
+
+### State & data flow
+
+85. [ ] **Messages.jsx:27-46** has 19 independent `useState` hooks with no derived state — prime candidate for `useReducer` or context consolidation.
+
+86. [ ] **Dashboard.jsx:32** calls `friendsApi.list()` while `Sidebar` separately fetches projects; user-related data is fetched in multiple mount points with no cache.
+    - **Fix:** Create a `UserDataContext` or use a query cache (TanStack Query).
+
+87. [ ] **Calendar.jsx:524-526** loads `allUsers`, `projectMembers`, `events` in parallel but without memoization; every filter toggle re-renders the whole tree.
+
+88. [ ] **TasksContext.jsx:68-82** — optimistic update on task drag has no rollback on API failure. If the PATCH fails, the UI stays in the wrong state until a manual refetch.
+    - **Fix:** Keep the previous state in a ref, revert on error.
+
+89. [ ] **Error toasts are hardcoded in English** in `MessagesContext.jsx:58,149,163` (`'Failed to load messages'`, `'Failed to send message'`) — bypass the translation system.
+
+### Performance
+
+90. [ ] **Calendar.jsx:56,72** — `EventCard` runs nested `.map()` over members on every render without `React.memo`.
+
+91. [ ] **Messages.jsx:317,464** — `handleSelectTeam` and team/DM button renderers aren't wrapped in `useCallback`, so child buttons re-render on every keystroke in the compose box.
+
+92. [ ] **Dashboard.jsx:21** — `WeeklyChart` isn't memoized; recalculates colours and hours on every parent render.
+
+93. [ ] **Messages.jsx:225-235** — friend search hits `usersApi.list()` on every keystroke. Needs a 300ms debounce or client-side filter.
+
+94. [ ] **No virtualization anywhere** — long task lists, message lists, and activity feeds render every item to the DOM.
+    - **Fix:** Use `react-window` for lists expected to grow.
+
+### i18n coverage gaps
+
+95. [ ] **AuthPage.jsx:87** — `toast.success('Sikeres bejelentkezés!')` is hardcoded Hungarian with no translation key.
+
+96. [ ] **AuthPage.jsx:384** — same issue: `toast.success('Sikeres regisztráció!')` hardcoded.
+
+97. [ ] **AuthPage.jsx:287** — `placeholder="nev@kodo.io"` is Hungarian even when the UI is in English.
+
+98. [ ] **AuthPage.jsx:253** — Hungarian fallback `'Elfelejtett jelszó'` used instead of trusting the translation key.
+
+99. [ ] **Calendar.jsx:109** — the string `'Online'` is hardcoded in the event detail meeting indicator.
+
+### Forms & validation UX
+
+100. [ ] **NewTaskModal.jsx:313** — submit button has no `disabled` state during submission; a double-click sends two POSTs.
+
+101. [ ] **NewTaskModal.jsx:150-157** — invalid fields show a red border but no `aria-invalid="true"`; screen readers don't know the field is wrong.
+
+102. [ ] **NewTeamModal.jsx:120** — team name label has no `*` required indicator even though the validator rejects empty names.
+
+103. [ ] **Settings.jsx:83,87** — password-change errors (`'Passwords do not match'`, `'Password must be at least 8 characters'`) are hardcoded English.
+
+104. [ ] **AuthPage.jsx:368-372** — register form calls both `setError()` and `toast.error()` for the same error, doubling up the message; the submit button has no loading spinner.
 
 ---
 

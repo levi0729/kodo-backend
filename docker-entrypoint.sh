@@ -1,8 +1,36 @@
 #!/bin/bash
 set -e
 
-# Generate app key if not set
-if [ -z "$APP_KEY" ]; then
+# ── Parse DATABASE_URL (Render/Neon style) into DB_* vars ────────────────
+# Accepts postgres://user:pass@host:port/dbname?sslmode=require
+# Only fills variables that aren't already set, so explicit DB_HOST etc. still win.
+if [ -n "$DATABASE_URL" ]; then
+    eval "$(php -r '
+        $url = getenv("DATABASE_URL");
+        $p   = parse_url($url);
+        if ($p === false) { fwrite(STDERR, "Invalid DATABASE_URL\n"); exit(1); }
+        $q = [];
+        if (!empty($p["query"])) { parse_str($p["query"], $q); }
+        $exports = [
+            "DB_CONNECTION" => (($p["scheme"] ?? "pgsql") === "mysql") ? "mysql" : "pgsql",
+            "DB_HOST"       => $p["host"] ?? "",
+            "DB_PORT"       => $p["port"] ?? "5432",
+            "DB_DATABASE"   => isset($p["path"]) ? ltrim($p["path"], "/") : "",
+            "DB_USERNAME"   => $p["user"] ?? "",
+            "DB_PASSWORD"   => isset($p["pass"]) ? urldecode($p["pass"]) : "",
+            "DB_SSLMODE"    => $q["sslmode"] ?? "require",
+        ];
+        foreach ($exports as $k => $v) {
+            if (getenv($k) === false || getenv($k) === "") {
+                echo "export $k=" . escapeshellarg($v) . "\n";
+            }
+        }
+    ')"
+fi
+
+# Generate app key if not set or not a valid Laravel key (must start with base64:)
+if [ -z "$APP_KEY" ] || [[ "$APP_KEY" != base64:* ]]; then
+    echo "APP_KEY missing or invalid — generating..."
     php artisan key:generate --force
 fi
 
@@ -16,7 +44,7 @@ php -r "
 \$ssl  = getenv('DB_SSLMODE') ?: 'require';
 
 if (!\$host || !\$user) {
-    echo \"ERROR: DB_HOST and DB_USERNAME must be set\n\";
+    echo \"ERROR: DB_HOST and DB_USERNAME must be set (or provide DATABASE_URL)\n\";
     exit(1);
 }
 
@@ -43,9 +71,14 @@ if [ "$USER_COUNT" = "0" ]; then
     php artisan db:seed --force
 fi
 
-# Clear caches for production
-php artisan config:clear
-php artisan route:clear
+# Ensure public/storage symlink exists so uploaded files are publicly served
+if [ ! -L /app/public/storage ]; then
+    php artisan storage:link || true
+fi
+
+# Cache config and routes for production performance
+php artisan config:cache
+php artisan route:cache
 
 # Start the server
 exec php artisan serve --host=0.0.0.0 --port=${PORT:-8000}

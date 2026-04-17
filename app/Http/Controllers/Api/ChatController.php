@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\SendMessageRequest;
 use App\Http\Resources\ChatMessageResource;
 use App\Models\ChatRoom;
+use App\Models\ChatRoomReaction;
 use App\Models\Participant;
+use App\Services\MentionParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -32,7 +34,7 @@ class ChatController extends Controller
                 ->orWhereIn('room_id', $teamIds);
             })
             ->where('is_deleted', false)
-            ->with(['sender', 'receiver'])
+            ->with(['sender', 'receiver', 'reactions', 'attachments'])
             ->orderByDesc('created_at')
             ->get()
             ->groupBy('room_id')
@@ -79,7 +81,7 @@ class ChatController extends Controller
 
         $messages = ChatRoom::where('room_id', $roomId)
             ->where('is_deleted', false)
-            ->with(['sender', 'receiver'])
+            ->with(['sender', 'receiver', 'reactions', 'attachments'])
             ->orderByDesc('created_at')
             ->paginate($perPage);
 
@@ -129,7 +131,7 @@ class ChatController extends Controller
             });
         }
 
-        $messages = $query->with(['sender', 'receiver'])
+        $messages = $query->with(['sender', 'receiver', 'reactions', 'attachments'])
             ->orderBy('created_at')
             ->limit(50)
             ->get();
@@ -165,11 +167,37 @@ class ChatController extends Controller
             'room_id'     => $roomId,
             'sender_id'   => $senderId,
             'receiver_id' => $receiverId,
-            'message'     => $request->message,
+            'message'     => $request->message ?? '',
             'sent_at'     => now(),
         ]);
 
-        $message->load('sender', 'receiver');
+        // Persist uploaded attachments linked to this chat_rooms row
+        $attachments = $request->input('attachments', []);
+        if (is_array($attachments)) {
+            foreach ($attachments as $att) {
+                \App\Models\ChatRoomAttachment::create([
+                    'chat_room_id' => $message->id,
+                    'uploaded_by'  => $senderId,
+                    'file_name'    => $att['file_name'],
+                    'file_type'    => $att['file_type'] ?? null,
+                    'file_size'    => $att['file_size'] ?? null,
+                    'file_url'     => $att['file_url'],
+                    'width'        => $att['width'] ?? null,
+                    'height'       => $att['height'] ?? null,
+                ]);
+            }
+        }
+
+        MentionParser::handleChatRoom(
+            $message->message ?? '',
+            $senderId,
+            [
+                'team_id'    => $request->team_id ? (int) $request->team_id : null,
+                'action_url' => "/messages?room={$roomId}",
+            ]
+        );
+
+        $message->load('sender', 'receiver', 'reactions', 'attachments');
 
         return response()->json([
             'message' => new ChatMessageResource($message),
@@ -240,5 +268,63 @@ class ChatController extends Controller
         return response()->json([
             'message' => 'Message deleted.',
         ]);
+    }
+
+    /**
+     * Toggle an emoji reaction on a chat message.
+     */
+    public function toggleReaction(Request $request, ChatRoom $chatRoom): JsonResponse
+    {
+        $this->authorizeRoomAccess((int) $chatRoom->room_id);
+
+        $data = $request->validate([
+            'emoji' => ['required', 'string', 'max:50'],
+        ]);
+
+        $userId = Auth::id();
+
+        $existing = ChatRoomReaction::where('chat_room_id', $chatRoom->id)
+            ->where('user_id', $userId)
+            ->where('emoji', $data['emoji'])
+            ->first();
+
+        if ($existing) {
+            $existing->delete();
+            $action = 'removed';
+        } else {
+            ChatRoomReaction::create([
+                'chat_room_id' => $chatRoom->id,
+                'user_id'      => $userId,
+                'emoji'        => $data['emoji'],
+            ]);
+            $action = 'added';
+        }
+
+        $chatRoom->load(['sender', 'receiver', 'reactions', 'attachments']);
+
+        return response()->json([
+            'action'  => $action,
+            'message' => new ChatMessageResource($chatRoom),
+        ]);
+    }
+
+    private function authorizeRoomAccess(int $roomId): void
+    {
+        $userId = Auth::id();
+        if ($roomId < 100000) {
+            $isMember = Participant::where('entity_type', 'team')
+                ->where('entity_id', $roomId)
+                ->where('user_id', $userId)
+                ->exists();
+            if (! $isMember) {
+                abort(403, 'You are not a member of this team.');
+            }
+        } else {
+            $otherUserId = $roomId % 100000;
+            $minUserId   = (int) (($roomId - $otherUserId) / 100000);
+            if ($userId !== $otherUserId && $userId !== $minUserId) {
+                abort(403, 'You are not part of this conversation.');
+            }
+        }
     }
 }

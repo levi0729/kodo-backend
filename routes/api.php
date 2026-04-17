@@ -3,10 +3,15 @@
 use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CalendarEventController;
+use App\Http\Controllers\Api\ChannelController;
 use App\Http\Controllers\Api\ChatController;
+use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\FileController;
 use App\Http\Controllers\Api\FriendController;
+use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\ParticipantController;
 use App\Http\Controllers\Api\ProjectController;
 use App\Http\Controllers\Api\TaskController;
@@ -82,6 +87,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::patch('/rooms/{roomId}/read',        [ChatController::class, 'markAsRead']);
         Route::patch('/messages/{chatRoom}/pin',    [ChatController::class, 'togglePin']);
         Route::delete('/messages/{chatRoom}',       [ChatController::class, 'deleteMessage']);
+        Route::post('/messages/{chatRoom}/reactions', [ChatController::class, 'toggleReaction']);
     });
 
     // Friends
@@ -114,6 +120,7 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
 
     // Calendar Events
     Route::apiResource('calendar-events', CalendarEventController::class);
+    Route::post('/calendar-events/{calendarEvent}/rsvp', [CalendarEventController::class, 'rsvp']);
 
     // Notifications
     Route::prefix('notifications')->group(function () {
@@ -122,4 +129,32 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::post('/read-all',     [NotificationController::class, 'markAllRead']);
         Route::delete('/{id}',       [NotificationController::class, 'destroy']);
     });
+
+    // Organizations
+    Route::apiResource('organizations', OrganizationController::class);
+
+    // Channels
+    Route::apiResource('channels', ChannelController::class);
+    Route::get('/channels/{channel}/messages',  [ChannelController::class, 'messages']);
+    Route::post('/channels/{channel}/messages', [ChannelController::class, 'sendMessage']);
+
+    // Conversations (group chats)
+    Route::prefix('conversations')->group(function () {
+        Route::get('/',                              [ConversationController::class, 'index']);
+        Route::post('/',                             [ConversationController::class, 'store']);
+        Route::get('/{conversation}',                [ConversationController::class, 'show']);
+        Route::get('/{conversation}/messages',       [ConversationController::class, 'messages']);
+        Route::post('/{conversation}/messages',      [ConversationController::class, 'sendMessage']);
+        Route::post('/{conversation}/participants',  [ConversationController::class, 'addParticipants']);
+        Route::post('/{conversation}/leave',         [ConversationController::class, 'leave']);
+    });
+
+    // Message Reactions
+    Route::post('/messages/{message}/reactions',  [MessageReactionController::class, 'toggle']);
+    Route::get('/messages/{message}/reactions',   [MessageReactionController::class, 'index']);
+
+    // File Uploads
+    Route::post('/files/upload',          [FileController::class, 'upload']);
+    Route::post('/files/attach-message',  [FileController::class, 'attachToMessage']);
+    Route::delete('/files/{id}',          [FileController::class, 'destroy']);
 });

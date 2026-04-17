@@ -270,6 +270,40 @@ CREATE TRIGGER trg_chat_rooms_updated_at
     BEFORE UPDATE ON chat_rooms
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Reactions on chat_rooms messages (emoji, one row per user+emoji per message)
+CREATE TABLE chat_room_reactions (
+    id SERIAL PRIMARY KEY,
+    chat_room_id INT NOT NULL,
+    user_id INT NOT NULL,
+    emoji VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT uk_chat_room_reactions UNIQUE (chat_room_id, user_id, emoji),
+    CONSTRAINT fk_chat_room_reactions_room FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_room_reactions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_chat_room_reactions_room ON chat_room_reactions(chat_room_id);
+
+-- Attachments on chat_rooms messages (file metadata keyed to a chat_rooms row)
+CREATE TABLE chat_room_attachments (
+    id SERIAL PRIMARY KEY,
+    chat_room_id INT NOT NULL,
+    uploaded_by INT NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_type VARCHAR(100),
+    file_size INT,
+    file_url VARCHAR(500) NOT NULL,
+    width INT,
+    height INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_chat_room_attachments_room FOREIGN KEY (chat_room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE,
+    CONSTRAINT fk_chat_room_attachments_user FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_chat_room_attachments_room ON chat_room_attachments(chat_room_id);
+
 -- Conversations (group chats - future use)
 CREATE TABLE conversations (
     id SERIAL PRIMARY KEY,

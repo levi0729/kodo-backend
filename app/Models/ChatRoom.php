@@ -50,4 +50,14 @@ class ChatRoom extends Model
     {
         return $this->belongsTo(ChatRoom::class, 'room_id');
     }
+
+    public function reactions()
+    {
+        return $this->hasMany(ChatRoomReaction::class, 'chat_room_id');
+    }
+
+    public function attachments()
+    {
+        return $this->hasMany(ChatRoomAttachment::class, 'chat_room_id');
+    }
 }

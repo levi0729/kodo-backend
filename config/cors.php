@@ -19,9 +19,13 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [env('FRONTEND_URL', 'http://localhost:5173')],
+    // FRONTEND_URL can be comma-separated: "https://kodo.vercel.app,http://localhost:5173"
+    'allowed_origins' => array_map('trim', explode(',', env('FRONTEND_URL', 'http://localhost:5173'))),
 
-    'allowed_origins_patterns' => [],
+    // Also allow Vercel preview deploy URLs
+    'allowed_origins_patterns' => [
+        '#^https://kodo.*\.vercel\.app$#',
+    ],
 
     'allowed_headers' => ['*'],
 

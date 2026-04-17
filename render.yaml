@@ -3,6 +3,7 @@ services:
     name: kodo-api
     runtime: docker
     plan: free
+    healthCheckPath: /api/health
     envVars:
       - key: APP_NAME
         value: Kodo
@@ -11,21 +12,59 @@ services:
       - key: APP_DEBUG
         value: "false"
       - key: APP_KEY
-        generateValue: true
+        sync: false   # Set manually: php artisan key:generate, then paste base64:... value
+      # Set APP_URL to the full https URL of this service in the dashboard,
+      # e.g. https://kodo-api.onrender.com. Render's `property: host` only
+      # returns the bare hostname, which breaks Laravel's URL generation.
       - key: APP_URL
-        fromService:
-          name: kodo-api
-          type: web
-          property: host
+        sync: false
+
       - key: DB_CONNECTION
         value: pgsql
+      # Either set DATABASE_URL (postgres://user:pass@host:port/db?sslmode=require)
+      # OR set DB_HOST/DB_PORT/DB_DATABASE/DB_USERNAME/DB_PASSWORD individually.
+      # docker-entrypoint.sh auto-parses DATABASE_URL into DB_* on boot.
       - key: DATABASE_URL
         sync: false
+      - key: DB_SSLMODE
+        value: require
+
+      # Frontend origin for CORS (e.g. https://kodo.vercel.app)
       - key: FRONTEND_URL
         sync: false
+
+      # Session / cache: use file driver since the free plan has no Redis
+      # and DB sessions would add a round-trip on every request.
       - key: SESSION_DRIVER
         value: file
+      - key: SESSION_ENCRYPT
+        value: "true"
+      - key: SESSION_SECURE_COOKIE
+        value: "true"
       - key: CACHE_STORE
         value: file
       - key: QUEUE_CONNECTION
         value: sync
+
+      # Mail (for 2FA verification codes). Set in the dashboard.
+      - key: MAIL_MAILER
+        value: smtp
+      - key: MAIL_HOST
+        value: smtp.gmail.com
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_ENCRYPTION
+        value: tls
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: Kodo
+
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: LOG_LEVEL
+        value: info

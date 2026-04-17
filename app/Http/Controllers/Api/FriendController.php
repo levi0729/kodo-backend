@@ -89,6 +89,20 @@ class FriendController extends Controller
         })->first();
 
         if ($existing) {
+            // Allow re-request if the previous request was declined
+            if ($existing->status === 'declined') {
+                $existing->update([
+                    'user_id_1' => $userId,
+                    'user_id_2' => $friendId,
+                    'status'    => 'pending',
+                ]);
+
+                return response()->json([
+                    'message' => 'Friend request sent.',
+                    'friend'  => new FriendResource($existing->load(['userOne', 'userTwo'])),
+                ], 201);
+            }
+
             return response()->json([
                 'message' => 'Friend relationship already exists.',
                 'status'  => $existing->status,
