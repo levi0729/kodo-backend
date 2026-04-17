@@ -240,6 +240,10 @@ class AuthController extends Controller
     {
         /** @var User $user */
         $user = Auth::user();
+
+        // Ensure user belongs to all projects/teams (covers existing sessions)
+        $this->ensureMemberships($user);
+
         $user->load('settings');
 
         return response()->json([
