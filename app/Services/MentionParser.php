@@ -6,6 +6,7 @@ use App\Models\Message;
 use App\Models\MessageMention;
 use App\Models\Notification;
 use App\Models\User;
+use App\Models\UserSetting;
 use Illuminate\Support\Collection;
 
 class MentionParser
@@ -75,6 +76,10 @@ class MentionParser
                 'mentioned_id'  => $user->id,
             ]);
 
+            if (self::isDndActive($user->id)) {
+                continue;
+            }
+
             Notification::create([
                 'user_id'           => $user->id,
                 'notification_type' => 'mention',
@@ -109,6 +114,10 @@ class MentionParser
         $body   = self::buildBody($sender, $content);
 
         foreach ($users as $user) {
+            if (self::isDndActive($user->id)) {
+                continue;
+            }
+
             Notification::create([
                 'user_id'           => $user->id,
                 'notification_type' => 'mention',
@@ -120,6 +129,31 @@ class MentionParser
                 'is_read'           => false,
             ]);
         }
+    }
+
+    /**
+     * Check if a user currently has Do Not Disturb active.
+     */
+    private static function isDndActive(int $userId): bool
+    {
+        $settings = UserSetting::where('user_id', $userId)->first();
+        if (! $settings || ! $settings->dnd_enabled) {
+            return false;
+        }
+
+        $start = $settings->dnd_start_time;
+        $end   = $settings->dnd_end_time;
+        if (! $start || ! $end) {
+            return true; // DND enabled but no time window = always on
+        }
+
+        $now = now()->format('H:i');
+        // Handle overnight ranges (e.g. 22:00 – 07:00)
+        if ($start <= $end) {
+            return $now >= $start && $now <= $end;
+        }
+
+        return $now >= $start || $now <= $end;
     }
 
     private static function defaultTitle(?User $sender): string

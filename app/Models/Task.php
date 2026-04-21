@@ -77,4 +77,11 @@ class Task extends Model
     {
         return $this->hasMany(Task::class, 'parent_task_id');
     }
+
+    public function checklists()
+    {
+        return $this->hasMany(TaskChecklist::class)
+            ->orderBy('position')
+            ->orderBy('id');
+    }
 }

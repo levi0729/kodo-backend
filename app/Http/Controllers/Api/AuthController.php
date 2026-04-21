@@ -14,8 +14,11 @@ use App\Models\User;
 use App\Models\UserSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 
@@ -231,6 +234,116 @@ class AuthController extends Controller
         ]);
 
         return response()->json(['message' => 'Password changed successfully.']);
+    }
+
+    /**
+     * Send a password reset token to the user's email.
+     */
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email' => ['required', 'string', 'email'],
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if ($user) {
+            // Invalidate any previous reset tokens for this email
+            DB::table('password_reset_tokens')->where('email', $user->email)->delete();
+
+            // Generate a plain token and store its hash
+            $plainToken = Str::random(6);
+            // Use uppercase alphanumeric for easy user entry
+            $plainToken = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', Str::random(8)), 0, 6));
+
+            DB::table('password_reset_tokens')->insert([
+                'email'      => $user->email,
+                'token'      => Hash::make($plainToken),
+                'created_at' => now(),
+            ]);
+
+            // Send the reset email via Resend HTTP API (same pattern as VerificationController)
+            try {
+                $userName = $user->display_name ?? $user->username;
+                $html = view('emails.password-reset', [
+                    'token'    => $plainToken,
+                    'userName' => $userName,
+                ])->render();
+
+                $response = Http::withToken(config('services.resend.key'))
+                    ->post('https://api.resend.com/emails', [
+                        'from'    => 'Kodo <onboarding@resend.dev>',
+                        'to'      => [$user->email],
+                        'subject' => 'Kodo - Jelszó visszaállítás',
+                        'html'    => $html,
+                    ]);
+
+                if ($response->failed()) {
+                    \Log::error('Failed to send password reset email: ' . $response->body());
+                }
+            } catch (\Throwable $e) {
+                \Log::error('Failed to send password reset email: ' . $e->getMessage());
+            }
+        }
+
+        // Always return success to avoid email enumeration
+        $response = [
+            'message' => 'If an account exists with that email, we\'ve sent a password reset code.',
+        ];
+
+        // DEV ONLY: include token for testing — remove in production
+        if (config('app.debug') && isset($plainToken)) {
+            $response['dev_token'] = $plainToken;
+        }
+
+        return response()->json($response);
+    }
+
+    /**
+     * Reset the user's password using a valid token.
+     */
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'email'    => ['required', 'string', 'email'],
+            'token'    => ['required', 'string'],
+            'password' => ['required', 'string', 'confirmed', Password::min(8)->mixedCase()->numbers()],
+        ]);
+
+        $record = DB::table('password_reset_tokens')
+            ->where('email', $request->email)
+            ->first();
+
+        if (!$record) {
+            return response()->json(['message' => 'Invalid or expired reset token.'], 422);
+        }
+
+        // Check if token has expired (60 minutes)
+        if (Carbon::parse($record->created_at)->addMinutes(60)->isPast()) {
+            DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+            return response()->json(['message' => 'Invalid or expired reset token.'], 422);
+        }
+
+        // Verify the token hash matches
+        if (!Hash::check($request->token, $record->token)) {
+            return response()->json(['message' => 'Invalid or expired reset token.'], 422);
+        }
+
+        // Update the user's password
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'Invalid or expired reset token.'], 422);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        // Delete the used token
+        DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+
+        return response()->json(['message' => 'Password has been reset successfully.']);
     }
 
     /**

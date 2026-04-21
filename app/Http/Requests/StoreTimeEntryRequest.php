@@ -14,7 +14,7 @@ class StoreTimeEntryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'project_id'    => ['required', 'exists:projects,id'],
+            'project_id'    => ['nullable', 'exists:projects,id'],
             'hours'         => ['required', 'numeric', 'min:0.01', 'max:24'],
             'date'          => ['required', 'date'],
             'activity_type' => ['nullable', 'string', 'max:255'],

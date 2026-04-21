@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\ParticipantController;
 use App\Http\Controllers\Api\ProjectController;
+use App\Http\Controllers\Api\TaskChecklistController;
 use App\Http\Controllers\Api\TaskController;
 use App\Http\Controllers\Api\TeamController;
 use App\Http\Controllers\Api\TimeEntryController;
@@ -33,8 +34,10 @@ Route::get('/health', fn () => response()->json(['status' => 'ok']));
 
 // ── Public (Guest) ─────────────────────────────────────────
 Route::prefix('auth')->middleware('throttle:10,1')->group(function () {
-    Route::post('/register', [AuthController::class, 'register']);
-    Route::post('/login',    [AuthController::class, 'login']);
+    Route::post('/register',        [AuthController::class, 'register']);
+    Route::post('/login',           [AuthController::class, 'login']);
+    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('/reset-password',  [AuthController::class, 'resetPassword']);
 });
 
 // ── Verification (public, used during 2FA flow) ────────────
@@ -77,6 +80,17 @@ Route::middleware(['auth:sanctum', 'throttle:60,1', \App\Http\Middleware\EnsureM
     // Tasks
     Route::apiResource('tasks', TaskController::class);
     Route::post('/tasks/bulk-status', [TaskController::class, 'bulkUpdateStatus']);
+
+    // Task Checklists
+    Route::prefix('tasks/{taskId}/checklists')->group(function () {
+        Route::get('/',                         [TaskChecklistController::class, 'index']);
+        Route::post('/',                        [TaskChecklistController::class, 'store']);
+        Route::put('/{checklistId}',            [TaskChecklistController::class, 'update']);
+        Route::delete('/{checklistId}',         [TaskChecklistController::class, 'destroy']);
+        Route::post('/{checklistId}/items',     [TaskChecklistController::class, 'addItem']);
+        Route::put('/{checklistId}/items/{itemId}',    [TaskChecklistController::class, 'updateItem']);
+        Route::delete('/{checklistId}/items/{itemId}', [TaskChecklistController::class, 'destroyItem']);
+    });
 
     // Chat
     Route::prefix('chat')->group(function () {
