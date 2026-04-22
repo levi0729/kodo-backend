@@ -56,6 +56,16 @@ echo \"Applying database schema (IF NOT EXISTS)...\n\";
 \$sql = file_get_contents('/app/database/schema.sql');
 \$pdo->exec(\$sql);
 echo \"Schema applied successfully.\n\";
+
+/* ── Add room_type column if missing (handles pre-existing tables) ──── */
+\$cols = \$pdo->query(\"SELECT column_name FROM information_schema.columns WHERE table_name = 'chat_rooms' AND column_name = 'room_type'\");
+if (\$cols->rowCount() === 0) {
+    echo \"Adding room_type column to chat_rooms...\n\";
+    \$pdo->exec(\"ALTER TABLE chat_rooms ADD COLUMN room_type VARCHAR(10) NOT NULL DEFAULT 'dm'\");
+    \$pdo->exec(\"UPDATE chat_rooms SET room_type = 'team' WHERE room_id IN (SELECT id FROM teams)\");
+    \$pdo->exec(\"CREATE INDEX IF NOT EXISTS idx_chatrooms_room_type ON chat_rooms(room_type)\");
+    echo \"room_type column added and back-filled.\n\";
+}
 "
 
 # Seed only if the users table is empty (first deploy)
