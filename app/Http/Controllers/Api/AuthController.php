@@ -6,9 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Http\Resources\UserResource;
-use App\Models\Participant;
-use App\Models\Project;
-use App\Models\Team;
 use App\Models\TrustedDevice;
 use App\Models\User;
 use App\Models\UserSetting;
@@ -48,20 +45,6 @@ class AuthController extends Controller
             'language'              => 'hu',
             'notifications_enabled' => true,
         ]);
-
-        // Auto-add new user to all existing projects and teams as member
-        foreach (Project::pluck('id') as $projectId) {
-            Participant::firstOrCreate(
-                ['entity_type' => 'project', 'entity_id' => $projectId, 'user_id' => $user->id],
-                ['role' => 'member', 'joined_at' => now()]
-            );
-        }
-        foreach (Team::pluck('id') as $teamId) {
-            Participant::firstOrCreate(
-                ['entity_type' => 'team', 'entity_id' => $teamId, 'user_id' => $user->id],
-                ['role' => 'member', 'joined_at' => now()]
-            );
-        }
 
         $token = $user->createToken('auth_token', ['*'], now()->addDays(30))->plainTextToken;
 
@@ -132,9 +115,6 @@ class AuthController extends Controller
                     'last_seen_at'          => now(),
                 ]);
 
-                // Ensure user belongs to all projects/teams
-                $this->ensureMemberships($user);
-
                 $token = $user->createToken('auth_token', ['*'], now()->addDays(30))->plainTextToken;
 
                 return response()->json([
@@ -160,22 +140,6 @@ class AuthController extends Controller
             'phone'                 => $this->maskPhone($user->phone_number),
             'has_phone'             => !empty($user->phone_number),
         ]);
-    }
-
-    private function ensureMemberships(User $user): void
-    {
-        foreach (Project::pluck('id') as $pid) {
-            Participant::firstOrCreate(
-                ['entity_type' => 'project', 'entity_id' => $pid, 'user_id' => $user->id],
-                ['role' => 'member', 'joined_at' => now()]
-            );
-        }
-        foreach (Team::pluck('id') as $tid) {
-            Participant::firstOrCreate(
-                ['entity_type' => 'team', 'entity_id' => $tid, 'user_id' => $user->id],
-                ['role' => 'member', 'joined_at' => now()]
-            );
-        }
     }
 
     private function maskEmail(string $email): string

@@ -23,6 +23,12 @@ class ChatRoom extends Model
         'is_pinned',
     ];
 
+    protected $attributes = [
+        'is_read'    => false,
+        'is_pinned'  => false,
+        'is_deleted' => false,
+    ];
+
     protected function casts(): array
     {
         return [

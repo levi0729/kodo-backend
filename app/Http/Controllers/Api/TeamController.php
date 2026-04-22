@@ -21,7 +21,7 @@ class TeamController extends Controller
     {
         $userId = Auth::id();
 
-        // Only show teams the user is a member of, or public teams
+        // Only show teams the user is a member of or owns
         $memberTeamIds = Participant::where('entity_type', 'team')
             ->where('user_id', $userId)
             ->pluck('entity_id');
@@ -30,8 +30,7 @@ class TeamController extends Controller
             ->withCount('tasks')
             ->where(function ($q) use ($userId, $memberTeamIds) {
                 $q->whereIn('id', $memberTeamIds)
-                  ->orWhere('owner_id', $userId)
-                  ->orWhere('is_private', false);
+                  ->orWhere('owner_id', $userId);
             });
 
         if ($projectId = $request->query('project_id')) {
@@ -93,6 +92,17 @@ class TeamController extends Controller
 
     public function show(Team $team): JsonResponse
     {
+        $userId = Auth::id();
+        $isMember = $team->owner_id === $userId
+            || Participant::where('entity_type', 'team')
+                ->where('entity_id', $team->id)
+                ->where('user_id', $userId)
+                ->exists();
+
+        if (! $isMember) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $team->load(['owner', 'project', 'tasks', 'participants.user']);
         $team->loadCount('tasks');
 

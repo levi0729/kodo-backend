@@ -33,30 +33,47 @@ class ChatController extends Controller
             ->merge(Team::where('owner_id', $userId)->pluck('id'))
             ->unique();
 
-        $conversations = ChatRoom::where(function ($q) use ($userId, $teamIds) {
-                // DM conversations
+        // Get the latest message ID per room (efficient subquery)
+        $latestIds = ChatRoom::where(function ($q) use ($userId, $teamIds) {
                 $q->where(function ($q2) use ($userId) {
                     $q2->where('sender_id', $userId)
                         ->orWhere('receiver_id', $userId);
                 })
-                // Team conversations (room_id = team_id)
                 ->orWhereIn('room_id', $teamIds);
             })
             ->where('is_deleted', false)
+            ->groupBy('room_id')
+            ->selectRaw('MAX(id) as id')
+            ->pluck('id');
+
+        // Fetch only the latest messages with relationships
+        $latestMessages = ChatRoom::whereIn('id', $latestIds)
             ->with(['sender', 'receiver', 'reactions', 'attachments'])
             ->orderByDesc('created_at')
-            ->get()
-            ->groupBy('room_id')
-            ->map(function ($messages) use ($userId) {
-                return [
-                    'room_id'        => $messages->first()->room_id,
-                    'latest_message' => new ChatMessageResource($messages->first()),
-                    'unread_count'   => $messages->where('is_read', false)
-                        ->where('receiver_id', $userId)
-                        ->count(),
-                ];
+            ->get();
+
+        // Count unread per room in a single query
+        $unreadCounts = ChatRoom::where(function ($q) use ($userId, $teamIds) {
+                $q->where(function ($q2) use ($userId) {
+                    $q2->where('sender_id', $userId)
+                        ->orWhere('receiver_id', $userId);
+                })
+                ->orWhereIn('room_id', $teamIds);
             })
-            ->values();
+            ->where('is_deleted', false)
+            ->where('is_read', false)
+            ->where('receiver_id', $userId)
+            ->groupBy('room_id')
+            ->selectRaw('room_id, COUNT(*) as cnt')
+            ->pluck('cnt', 'room_id');
+
+        $conversations = $latestMessages->map(function ($msg) use ($unreadCounts) {
+            return [
+                'room_id'        => $msg->room_id,
+                'latest_message' => new ChatMessageResource($msg),
+                'unread_count'   => $unreadCounts[$msg->room_id] ?? 0,
+            ];
+        })->values();
 
         return response()->json([
             'conversations' => $conversations,
@@ -173,6 +190,7 @@ class ChatController extends Controller
             ]
         );
 
+        $message->refresh();
         $message->load('sender', 'receiver', 'reactions', 'attachments');
 
         return response()->json([

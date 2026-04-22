@@ -58,6 +58,14 @@ class ProjectController extends Controller
 
         $project = Project::create($data);
 
+        Participant::create([
+            'entity_type' => 'project',
+            'entity_id'   => $project->id,
+            'user_id'     => Auth::id(),
+            'role'        => 'admin',
+            'joined_at'   => now(),
+        ]);
+
         ActivityLog::create([
             'user_id'     => Auth::id(),
             'action'      => 'CREATED_PROJECT',
