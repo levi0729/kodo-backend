@@ -20,7 +20,6 @@ use App\Http\Controllers\Api\TeamController;
 use App\Http\Controllers\Api\TimeEntryController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserSettingsController;
-use App\Http\Controllers\Api\VerificationController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -38,13 +37,6 @@ Route::prefix('auth')->middleware('throttle:10,1')->group(function () {
     Route::post('/login',           [AuthController::class, 'login']);
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password',  [AuthController::class, 'resetPassword']);
-});
-
-// ── Verification (public, used during 2FA flow) ────────────
-Route::prefix('verification')->middleware('throttle:10,1')->group(function () {
-    Route::post('/send',         [VerificationController::class, 'sendCode']);
-    Route::post('/verify',       [VerificationController::class, 'verifyCode']);
-    Route::post('/check-device', [VerificationController::class, 'checkDevice']);
 });
 
 // ── Protected ──────────────────────────────────────────────

@@ -29,9 +29,13 @@ class FriendController extends Controller
 
         // Map to the "other" user
         $friendUsers = $friends->map(function ($friend) use ($userId) {
-            return $friend->user_id_1 === $userId
+            $user = $friend->user_id_1 === $userId
                 ? new UserResource($friend->userTwo)
                 : new UserResource($friend->userOne);
+            // Include the friend record id for remove functionality
+            $userData = $user->resolve();
+            $userData['friend_record_id'] = $friend->id;
+            return $userData;
         });
 
         return response()->json([
@@ -46,7 +50,7 @@ class FriendController extends Controller
     {
         $requests = Friend::where('user_id_2', Auth::id())
             ->where('status', 'pending')
-            ->with('userOne')
+            ->with(['userOne', 'userTwo'])
             ->get();
 
         return response()->json([
@@ -61,7 +65,7 @@ class FriendController extends Controller
     {
         $requests = Friend::where('user_id_1', Auth::id())
             ->where('status', 'pending')
-            ->with('userTwo')
+            ->with(['userOne', 'userTwo'])
             ->get();
 
         return response()->json([

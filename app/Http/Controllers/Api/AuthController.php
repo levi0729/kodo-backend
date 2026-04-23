@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
 use App\Http\Resources\UserResource;
-use App\Models\TrustedDevice;
 use App\Models\User;
 use App\Models\UserSetting;
 use Illuminate\Http\JsonResponse;
@@ -97,65 +96,21 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid credentials.'], 401);
         }
 
-        // Check if device is trusted (skip verification)
-        $deviceToken = $request->input('device_token');
-        if ($deviceToken) {
-            $hashedToken = hash('sha256', $deviceToken);
-            $trusted = TrustedDevice::where('user_id', $user->id)
-                ->where('device_token', $hashedToken)
-                ->where('expires_at', '>', now())
-                ->exists();
-
-            if ($trusted) {
-                // Device is trusted — complete login directly
-                $user->update([
-                    'failed_login_attempts' => 0,
-                    'locked_until'          => null,
-                    'presence_status'       => 'online',
-                    'last_seen_at'          => now(),
-                ]);
-
-                $token = $user->createToken('auth_token', ['*'], now()->addDays(30))->plainTextToken;
-
-                return response()->json([
-                    'message' => 'Login successful.',
-                    'user'    => new UserResource($user),
-                    'token'   => $token,
-                ]);
-            }
-        }
-
-        // Credentials are valid but verification is required
-        // Reset failed attempts but don't create token yet
+        // Login successful
         $user->update([
             'failed_login_attempts' => 0,
             'locked_until'          => null,
+            'presence_status'       => 'online',
+            'last_seen_at'          => now(),
         ]);
+
+        $token = $user->createToken('auth_token', ['*'], now()->addDays(30))->plainTextToken;
 
         return response()->json([
-            'message'               => 'Verification required.',
-            'verification_required' => true,
-            'user_id'               => $user->id,
-            'email'                 => $this->maskEmail($user->email),
-            'phone'                 => $this->maskPhone($user->phone_number),
-            'has_phone'             => !empty($user->phone_number),
+            'message' => 'Login successful.',
+            'user'    => new UserResource($user),
+            'token'   => $token,
         ]);
-    }
-
-    private function maskEmail(string $email): string
-    {
-        $parts = explode('@', $email);
-        $name = $parts[0];
-        $masked = substr($name, 0, 2) . str_repeat('*', max(strlen($name) - 2, 0));
-        return $masked . '@' . $parts[1];
-    }
-
-    private function maskPhone(?string $phone): string
-    {
-        if (!$phone) return '';
-        $len = strlen($phone);
-        if ($len <= 4) return str_repeat('*', $len);
-        return str_repeat('*', $len - 4) . substr($phone, -4);
     }
 
     /**
