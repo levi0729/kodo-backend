@@ -13,6 +13,7 @@ use App\Services\MentionParser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class ChatController extends Controller
 {
@@ -190,6 +191,23 @@ class ChatController extends Controller
             ]
         );
 
+        // Create notification for DM recipient (not for mentions — MentionParser handles those)
+        if ($roomType === 'dm' && $receiverId !== $senderId) {
+            $sender = $message->sender ?? \App\Models\User::find($senderId);
+            $senderName = $sender?->display_name ?: ($sender?->username ?? 'Someone');
+            $snippet = mb_substr(trim($message->message ?? ''), 0, 140);
+
+            \App\Models\Notification::create([
+                'user_id'           => $receiverId,
+                'notification_type' => 'message',
+                'actor_id'          => $senderId,
+                'title'             => "{$senderName} sent you a message",
+                'body'              => $snippet ?: '(attachment)',
+                'action_url'        => "/messages?room={$roomId}",
+                'is_read'           => false,
+            ]);
+        }
+
         $message->refresh();
         $message->load('sender', 'receiver', 'reactions', 'attachments');
 
@@ -284,6 +302,58 @@ class ChatController extends Controller
             'action'  => $action,
             'message' => new ChatMessageResource($chatRoom),
         ]);
+    }
+
+    /**
+     * Signal that the current user is typing in a room.
+     */
+    public function typing(Request $request): JsonResponse
+    {
+        $request->validate(['room_id' => 'required|integer']);
+        $roomId = (int) $request->room_id;
+        $userId = Auth::id();
+
+        // Store typing status in cache for 5 seconds
+        $cacheKey = "typing:{$roomId}:{$userId}";
+        Cache::put($cacheKey, true, 5);
+
+        // Keep a set of typing users per room
+        $roomKey = "typing_users:{$roomId}";
+        $typingUsers = Cache::get($roomKey, []);
+        $typingUsers[$userId] = now()->timestamp;
+        Cache::put($roomKey, $typingUsers, 10);
+
+        return response()->json(['status' => 'ok']);
+    }
+
+    /**
+     * Get users currently typing in a room.
+     */
+    public function typingStatus(int $roomId): JsonResponse
+    {
+        $userId = Auth::id();
+        $roomKey = "typing_users:{$roomId}";
+        $typingUsers = Cache::get($roomKey, []);
+
+        // Filter out expired entries (older than 5 seconds) and self
+        $now = now()->timestamp;
+        $active = [];
+        $changed = false;
+        foreach ($typingUsers as $uid => $timestamp) {
+            if ($now - $timestamp > 5) {
+                $changed = true;
+                continue;
+            }
+            if ((int) $uid !== $userId) {
+                $active[] = (int) $uid;
+            }
+        }
+
+        if ($changed) {
+            Cache::put($roomKey, array_filter($typingUsers, fn ($ts) => $now - $ts <= 5), 10);
+        }
+
+        return response()->json(['typing_user_ids' => $active]);
     }
 
     private function isTeamMember(int $teamId, int $userId): bool

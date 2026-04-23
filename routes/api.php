@@ -94,6 +94,8 @@ Route::middleware(['auth:sanctum', 'throttle:60,1'])->group(function () {
         Route::patch('/messages/{chatRoom}/pin',    [ChatController::class, 'togglePin']);
         Route::delete('/messages/{chatRoom}',       [ChatController::class, 'deleteMessage']);
         Route::post('/messages/{chatRoom}/reactions', [ChatController::class, 'toggleReaction']);
+        Route::post('/typing',                          [ChatController::class, 'typing']);
+        Route::get('/rooms/{roomId}/typing',            [ChatController::class, 'typingStatus']);
     });
 
     // Friends
