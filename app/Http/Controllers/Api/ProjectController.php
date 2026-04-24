@@ -75,6 +75,8 @@ class ProjectController extends Controller
 
         $project->load('owner');
 
+        // No notifications on project creation — only the creator is a member at this point
+
         return response()->json([
             'message' => 'Project created.',
             'project' => new ProjectResource($project),

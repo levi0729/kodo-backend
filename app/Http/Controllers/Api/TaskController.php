@@ -133,6 +133,33 @@ class TaskController extends Controller
             'target_id'   => $task->id,
         ]);
 
+        // Notify assigned users about the new task
+        $creatorId = Auth::id();
+        $creator = Auth::user();
+        $creatorName = $creator?->display_name ?: ($creator?->username ?? 'Someone');
+        $notifyUserIds = collect($assignees ?? [])->filter(fn ($id) => (int) $id !== $creatorId);
+
+        // Also notify project members if no specific assignees
+        if ($notifyUserIds->isEmpty() && $task->project_id) {
+            $notifyUserIds = Participant::where('entity_type', 'project')
+                ->where('entity_id', $task->project_id)
+                ->where('user_id', '!=', $creatorId)
+                ->pluck('user_id');
+        }
+
+        foreach ($notifyUserIds as $userId) {
+            \App\Models\Notification::create([
+                'user_id'           => (int) $userId,
+                'notification_type' => 'task',
+                'actor_id'          => $creatorId,
+                'task_id'           => $task->id,
+                'title'             => "{$creatorName} created a new task",
+                'body'              => $task->title,
+                'action_url'        => '/tasks?highlight=' . $task->id,
+                'is_read'           => false,
+            ]);
+        }
+
         $task->load(['project', 'team', 'creator', 'assignees']);
 
         return response()->json([

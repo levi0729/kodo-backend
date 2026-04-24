@@ -116,6 +116,35 @@ class ParticipantController extends Controller
 
         $participant->load('user');
 
+        // Notify the added user
+        $addedUserId = (int) $request->user_id;
+        $actorId = Auth::id();
+        if ($addedUserId !== $actorId) {
+            $actor = Auth::user();
+            $actorName = $actor?->display_name ?: ($actor?->username ?? 'Someone');
+            $entityType = $request->entity_type;
+            $entityId = (int) $request->entity_id;
+
+            $entityName = '';
+            if ($entityType === 'project') {
+                $entityName = Project::where('id', $entityId)->value('name') ?? 'a project';
+            } else {
+                $entityName = Team::where('id', $entityId)->value('name') ?? 'a team';
+            }
+
+            \App\Models\Notification::create([
+                'user_id'           => $addedUserId,
+                'notification_type' => $entityType,
+                'actor_id'          => $actorId,
+                'title'             => "{$actorName} added you to {$entityName}",
+                'body'              => ucfirst($entityType) . ': ' . $entityName,
+                'action_url'        => $entityType === 'project' ? '/' : '/teams',
+                'is_read'           => false,
+            ]);
+        }
+
+        $participant->load('user');
+
         return response()->json([
             'message'     => 'Participant added.',
             'participant' => [
