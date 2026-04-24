@@ -22,11 +22,15 @@ class ChannelController extends Controller
             return response()->json(['message' => 'team_id is required.'], 422);
         }
 
-        // Verify team membership
+        // Verify team membership or ownership
         $isMember = Participant::where('entity_type', 'team')
             ->where('entity_id', $teamId)
             ->where('user_id', Auth::id())
             ->exists();
+
+        if (! $isMember) {
+            $isMember = \App\Models\Team::where('id', $teamId)->where('owner_id', Auth::id())->exists();
+        }
 
         if (! $isMember) {
             return response()->json(['message' => 'Forbidden.'], 403);

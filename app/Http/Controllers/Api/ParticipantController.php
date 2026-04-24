@@ -114,6 +114,27 @@ class ParticipantController extends Controller
             'joined_at'   => now(),
         ]);
 
+        // When adding to a team, also add to the team's project if one exists
+        if ($request->entity_type === 'team') {
+            $team = Team::find($request->entity_id);
+            if ($team && $team->project_id) {
+                $alreadyInProject = Participant::where('entity_type', 'project')
+                    ->where('entity_id', $team->project_id)
+                    ->where('user_id', $request->user_id)
+                    ->exists();
+
+                if (! $alreadyInProject) {
+                    Participant::create([
+                        'entity_type' => 'project',
+                        'entity_id'   => $team->project_id,
+                        'user_id'     => $request->user_id,
+                        'role'        => 'member',
+                        'joined_at'   => now(),
+                    ]);
+                }
+            }
+        }
+
         $participant->load('user');
 
         // Notify the added user

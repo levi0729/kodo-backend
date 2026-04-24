@@ -7,6 +7,7 @@ use App\Http\Requests\StoreTeamRequest;
 use App\Http\Requests\UpdateTeamRequest;
 use App\Http\Resources\TeamResource;
 use App\Models\ActivityLog;
+use App\Models\Channel;
 use App\Models\Participant;
 use App\Models\Team;
 use Illuminate\Http\JsonResponse;
@@ -73,6 +74,16 @@ class TeamController extends Controller
             'entity_type' => 'team',
             'joined_at'   => now(),
             'role'        => 'admin',
+        ]);
+
+        // Create default #general channel for the team
+        Channel::create([
+            'team_id'      => $team->id,
+            'name'         => 'general',
+            'slug'         => 'general',
+            'channel_type' => 'standard',
+            'is_default'   => true,
+            'created_by'   => Auth::id(),
         ]);
 
         ActivityLog::create([
