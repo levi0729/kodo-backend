@@ -14,6 +14,23 @@ use Illuminate\Support\Str;
 
 class ChannelController extends Controller
 {
+    /**
+     * Check if the current user is a member or owner of the given team.
+     */
+    private function isTeamMemberOrOwner(int $teamId): bool
+    {
+        $userId = Auth::id();
+
+        $isMember = Participant::where('entity_type', 'team')
+            ->where('entity_id', $teamId)
+            ->where('user_id', $userId)
+            ->exists();
+
+        if ($isMember) return true;
+
+        return \App\Models\Team::where('id', $teamId)->where('owner_id', $userId)->exists();
+    }
+
     public function index(Request $request): JsonResponse
     {
         $teamId = $request->query('team_id');
@@ -22,17 +39,7 @@ class ChannelController extends Controller
             return response()->json(['message' => 'team_id is required.'], 422);
         }
 
-        // Verify team membership or ownership
-        $isMember = Participant::where('entity_type', 'team')
-            ->where('entity_id', $teamId)
-            ->where('user_id', Auth::id())
-            ->exists();
-
-        if (! $isMember) {
-            $isMember = \App\Models\Team::where('id', $teamId)->where('owner_id', Auth::id())->exists();
-        }
-
-        if (! $isMember) {
+        if (! $this->isTeamMemberOrOwner((int) $teamId)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -41,6 +48,23 @@ class ChannelController extends Controller
             ->orderBy('is_default', 'desc')
             ->orderBy('name')
             ->get();
+
+        // Auto-create a default #general channel if team has none
+        if ($channels->isEmpty()) {
+            $team = \App\Models\Team::find($teamId);
+            if ($team) {
+                $general = Channel::create([
+                    'team_id'      => $teamId,
+                    'name'         => 'general',
+                    'slug'         => 'general',
+                    'channel_type' => 'standard',
+                    'is_default'   => true,
+                    'created_by'   => $team->owner_id,
+                ]);
+                $general->loadCount('messages');
+                $channels = collect([$general]);
+            }
+        }
 
         return response()->json(['channels' => $channels]);
     }
@@ -55,13 +79,15 @@ class ChannelController extends Controller
         ]);
 
         // Verify user is admin/owner of the team
-        $participant = Participant::where('entity_type', 'team')
-            ->where('entity_id', $data['team_id'])
-            ->where('user_id', Auth::id())
-            ->first();
-
-        if (! $participant || ! in_array($participant->role, ['admin', 'owner'])) {
-            return response()->json(['message' => 'Only team admins can create channels.'], 403);
+        $isOwner = \App\Models\Team::where('id', $data['team_id'])->where('owner_id', Auth::id())->exists();
+        if (! $isOwner) {
+            $participant = Participant::where('entity_type', 'team')
+                ->where('entity_id', $data['team_id'])
+                ->where('user_id', Auth::id())
+                ->first();
+            if (! $participant || ! in_array($participant->role, ['admin', 'owner'])) {
+                return response()->json(['message' => 'Only team admins can create channels.'], 403);
+            }
         }
 
         $channel = Channel::create([
@@ -78,12 +104,7 @@ class ChannelController extends Controller
 
     public function show(Channel $channel): JsonResponse
     {
-        $isMember = Participant::where('entity_type', 'team')
-            ->where('entity_id', $channel->team_id)
-            ->where('user_id', Auth::id())
-            ->exists();
-
-        if (! $isMember) {
+        if (! $this->isTeamMemberOrOwner($channel->team_id)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -95,13 +116,15 @@ class ChannelController extends Controller
 
     public function update(Request $request, Channel $channel): JsonResponse
     {
-        $participant = Participant::where('entity_type', 'team')
-            ->where('entity_id', $channel->team_id)
-            ->where('user_id', Auth::id())
-            ->first();
-
-        if (! $participant || ! in_array($participant->role, ['admin', 'owner'])) {
-            return response()->json(['message' => 'Forbidden.'], 403);
+        $isOwner = \App\Models\Team::where('id', $channel->team_id)->where('owner_id', Auth::id())->exists();
+        if (! $isOwner) {
+            $participant = Participant::where('entity_type', 'team')
+                ->where('entity_id', $channel->team_id)
+                ->where('user_id', Auth::id())
+                ->first();
+            if (! $participant || ! in_array($participant->role, ['admin', 'owner'])) {
+                return response()->json(['message' => 'Forbidden.'], 403);
+            }
         }
 
         $data = $request->validate([
@@ -121,13 +144,15 @@ class ChannelController extends Controller
 
     public function destroy(Channel $channel): JsonResponse
     {
-        $participant = Participant::where('entity_type', 'team')
-            ->where('entity_id', $channel->team_id)
-            ->where('user_id', Auth::id())
-            ->first();
-
-        if (! $participant || ! in_array($participant->role, ['admin', 'owner'])) {
-            return response()->json(['message' => 'Forbidden.'], 403);
+        $isOwner = \App\Models\Team::where('id', $channel->team_id)->where('owner_id', Auth::id())->exists();
+        if (! $isOwner) {
+            $participant = Participant::where('entity_type', 'team')
+                ->where('entity_id', $channel->team_id)
+                ->where('user_id', Auth::id())
+                ->first();
+            if (! $participant || ! in_array($participant->role, ['admin', 'owner'])) {
+                return response()->json(['message' => 'Forbidden.'], 403);
+            }
         }
 
         if ($channel->is_default) {
@@ -144,12 +169,7 @@ class ChannelController extends Controller
      */
     public function messages(Request $request, Channel $channel): JsonResponse
     {
-        $isMember = Participant::where('entity_type', 'team')
-            ->where('entity_id', $channel->team_id)
-            ->where('user_id', Auth::id())
-            ->exists();
-
-        if (! $isMember) {
+        if (! $this->isTeamMemberOrOwner($channel->team_id)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
@@ -175,12 +195,7 @@ class ChannelController extends Controller
      */
     public function sendMessage(Request $request, Channel $channel): JsonResponse
     {
-        $isMember = Participant::where('entity_type', 'team')
-            ->where('entity_id', $channel->team_id)
-            ->where('user_id', Auth::id())
-            ->exists();
-
-        if (! $isMember) {
+        if (! $this->isTeamMemberOrOwner($channel->team_id)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
