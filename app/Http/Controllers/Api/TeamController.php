@@ -28,14 +28,22 @@ class TeamController extends Controller
             ->pluck('entity_id');
 
         $query = Team::with('owner', 'project', 'participants')
-            ->withCount('tasks')
-            ->where(function ($q) use ($userId, $memberTeamIds) {
+            ->withCount('tasks');
+
+        if ($projectId = $request->query('project_id')) {
+            $query->where('project_id', $projectId)
+                ->where(function ($q) use ($userId, $memberTeamIds) {
+                    $q->whereIn('id', $memberTeamIds)
+                      ->orWhere('owner_id', $userId)
+                      ->orWhere(function ($q2) {
+                          $q2->where('visibility', 'public')->where('is_private', false);
+                      });
+                });
+        } else {
+            $query->where(function ($q) use ($userId, $memberTeamIds) {
                 $q->whereIn('id', $memberTeamIds)
                   ->orWhere('owner_id', $userId);
             });
-
-        if ($projectId = $request->query('project_id')) {
-            $query->where('project_id', $projectId);
         }
 
         $perPage = min((int) $request->query('per_page', 15), 100);
