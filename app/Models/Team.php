@@ -22,6 +22,7 @@ class Team extends Model
         'is_private',
         'password_hash',
         'is_archived',
+        'is_default',
         'owner_id',
     ];
 
@@ -34,6 +35,7 @@ class Team extends Model
         return [
             'is_private'  => 'boolean',
             'is_archived' => 'boolean',
+            'is_default'  => 'boolean',
         ];
     }
 

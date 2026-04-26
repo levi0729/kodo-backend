@@ -157,6 +157,10 @@ class TeamController extends Controller
             abort(403, 'You do not own this team.');
         }
 
+        if ($team->is_default) {
+            return response()->json(['message' => 'The default team cannot be deleted.'], 403);
+        }
+
         $team->delete();
 
         ActivityLog::create([

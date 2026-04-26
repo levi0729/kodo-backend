@@ -135,6 +135,30 @@ class ParticipantController extends Controller
             }
         }
 
+        // When adding to a project, also add to the project's default team
+        if ($request->entity_type === 'project') {
+            $defaultTeam = Team::where('project_id', $request->entity_id)
+                ->where('is_default', true)
+                ->first();
+
+            if ($defaultTeam) {
+                $alreadyInTeam = Participant::where('entity_type', 'team')
+                    ->where('entity_id', $defaultTeam->id)
+                    ->where('user_id', $request->user_id)
+                    ->exists();
+
+                if (! $alreadyInTeam) {
+                    Participant::create([
+                        'entity_type' => 'team',
+                        'entity_id'   => $defaultTeam->id,
+                        'user_id'     => $request->user_id,
+                        'role'        => $request->input('role', 'member'),
+                        'joined_at'   => now(),
+                    ]);
+                }
+            }
+        }
+
         $participant->load('user');
 
         // Notify the added user

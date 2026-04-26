@@ -7,8 +7,10 @@ use App\Http\Requests\StoreProjectRequest;
 use App\Http\Requests\UpdateProjectRequest;
 use App\Http\Resources\ProjectResource;
 use App\Models\ActivityLog;
+use App\Models\Channel;
 use App\Models\Participant;
 use App\Models\Project;
+use App\Models\Team;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -73,9 +75,37 @@ class ProjectController extends Controller
             'target_id'   => $project->id,
         ]);
 
-        $project->load('owner');
+        // Create default "General" team for this project
+        $defaultTeam = Team::create([
+            'project_id'  => $project->id,
+            'name'        => 'General',
+            'slug'        => 'general',
+            'description' => null,
+            'color'       => '#6366f1',
+            'visibility'  => 'public',
+            'is_private'  => false,
+            'is_default'  => true,
+            'owner_id'    => Auth::id(),
+        ]);
 
-        // No notifications on project creation — only the creator is a member at this point
+        Participant::create([
+            'entity_type' => 'team',
+            'entity_id'   => $defaultTeam->id,
+            'user_id'     => Auth::id(),
+            'role'        => 'admin',
+            'joined_at'   => now(),
+        ]);
+
+        Channel::create([
+            'team_id'      => $defaultTeam->id,
+            'name'         => 'general',
+            'slug'         => 'general',
+            'channel_type' => 'standard',
+            'is_default'   => true,
+            'created_by'   => Auth::id(),
+        ]);
+
+        $project->load('owner');
 
         return response()->json([
             'message' => 'Project created.',

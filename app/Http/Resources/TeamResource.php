@@ -20,6 +20,7 @@ class TeamResource extends JsonResource
             'visibility'  => $this->visibility,
             'is_private'  => $this->is_private,
             'is_archived' => $this->is_archived,
+            'is_default'  => $this->is_default,
             'owner'       => new UserResource($this->whenLoaded('owner')),
             'project'     => new ProjectResource($this->whenLoaded('project')),
             'members'     => $this->whenLoaded('participants', fn () =>
