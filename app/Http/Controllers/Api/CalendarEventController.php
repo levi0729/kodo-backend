@@ -99,6 +99,7 @@ class CalendarEventController extends Controller
             'status'            => ['nullable', 'string', 'in:confirmed,tentative,cancelled'],
             'reminder_minutes'  => ['nullable', 'integer', 'min:0'],
             'color'             => ['nullable', 'string', 'max:20'],
+            'category'          => ['nullable', 'string', 'max:100'],
             'attendees'         => ['nullable', 'array'],
             'attendees.*'       => ['integer', 'exists:users,id'],
         ]);
@@ -138,6 +139,7 @@ class CalendarEventController extends Controller
             'status'            => ['nullable', 'string', 'in:confirmed,tentative,cancelled'],
             'reminder_minutes'  => ['nullable', 'integer', 'min:0'],
             'color'             => ['nullable', 'string', 'max:20'],
+            'category'          => ['nullable', 'string', 'max:100'],
             'attendees'         => ['nullable', 'array'],
             'attendees.*'       => ['integer', 'exists:users,id'],
         ]);
