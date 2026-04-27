@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\UserResource;
+use App\Models\Friend;
 use App\Models\Participant;
 use App\Models\Project;
 use App\Models\Team;
@@ -95,6 +96,23 @@ class ParticipantController extends Controller
 
         if (! $this->isAdminOrOwner($request->entity_type, $request->entity_id)) {
             return response()->json(['message' => 'Forbidden. Only admins or owners can add participants.'], 403);
+        }
+
+        // Only allow adding friends
+        $actorId = Auth::id();
+        $targetId = (int) $request->user_id;
+        $isFriend = Friend::where('status', 'accepted')
+            ->where(function ($q) use ($actorId, $targetId) {
+                $q->where(function ($q2) use ($actorId, $targetId) {
+                    $q2->where('user_id_1', $actorId)->where('user_id_2', $targetId);
+                })->orWhere(function ($q2) use ($actorId, $targetId) {
+                    $q2->where('user_id_1', $targetId)->where('user_id_2', $actorId);
+                });
+            })
+            ->exists();
+
+        if (! $isFriend) {
+            return response()->json(['message' => 'You can only add friends to projects.'], 403);
         }
 
         $exists = Participant::where('entity_type', $request->entity_type)
