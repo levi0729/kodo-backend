@@ -11,6 +11,7 @@ class TimeEntryResource extends JsonResource
     {
         return [
             'id'            => $this->id,
+            'user_id'       => $this->user_id,
             'project_id'    => $this->project_id,
             'task_id'       => $this->task_id,
             'hours'         => (float) $this->hours,
