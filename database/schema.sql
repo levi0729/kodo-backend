@@ -165,6 +165,7 @@ CREATE TABLE IF NOT EXISTS teams (
     is_private BOOLEAN DEFAULT FALSE,
     password_hash VARCHAR(255),
     is_archived BOOLEAN DEFAULT FALSE,
+    is_default BOOLEAN DEFAULT FALSE,
     archived_at TIMESTAMP,
     archived_by INT,
     owner_id INT NOT NULL,

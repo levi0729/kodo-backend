@@ -15,6 +15,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class ProjectController extends Controller
@@ -78,7 +79,7 @@ class ProjectController extends Controller
             ]);
 
             // Create default "General" team for this project
-            $defaultTeam = Team::create([
+            $teamData = [
                 'project_id'  => $project->id,
                 'name'        => 'General',
                 'slug'        => 'general',
@@ -86,9 +87,12 @@ class ProjectController extends Controller
                 'color'       => '#6366f1',
                 'visibility'  => 'public',
                 'is_private'  => false,
-                'is_default'  => true,
                 'owner_id'    => Auth::id(),
-            ]);
+            ];
+            if (Schema::hasColumn('teams', 'is_default')) {
+                $teamData['is_default'] = true;
+            }
+            $defaultTeam = Team::create($teamData);
 
             Participant::create([
                 'entity_type' => 'team',
