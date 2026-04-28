@@ -10,6 +10,8 @@ class Message extends Model
 {
     use HasFactory, SoftDeletes;
 
+    const UPDATED_AT = null;
+
     protected $fillable = [
         'channel_id',
         'conversation_id',

@@ -14,6 +14,7 @@ use App\Models\Team;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ProjectController extends Controller
@@ -58,52 +59,56 @@ class ProjectController extends Controller
         $data['owner_id'] = Auth::id();
         $data['slug'] = $data['slug'] ?? Str::slug($data['name']);
 
-        $project = Project::create($data);
+        $project = DB::transaction(function () use ($data) {
+            $project = Project::create($data);
 
-        Participant::create([
-            'entity_type' => 'project',
-            'entity_id'   => $project->id,
-            'user_id'     => Auth::id(),
-            'role'        => 'admin',
-            'joined_at'   => now(),
-        ]);
+            Participant::create([
+                'entity_type' => 'project',
+                'entity_id'   => $project->id,
+                'user_id'     => Auth::id(),
+                'role'        => 'admin',
+                'joined_at'   => now(),
+            ]);
 
-        ActivityLog::create([
-            'user_id'     => Auth::id(),
-            'action'      => 'CREATED_PROJECT',
-            'target_type' => 'project',
-            'target_id'   => $project->id,
-        ]);
+            ActivityLog::create([
+                'user_id'     => Auth::id(),
+                'action'      => 'CREATED_PROJECT',
+                'target_type' => 'project',
+                'target_id'   => $project->id,
+            ]);
 
-        // Create default "General" team for this project
-        $defaultTeam = Team::create([
-            'project_id'  => $project->id,
-            'name'        => 'General',
-            'slug'        => 'general',
-            'description' => null,
-            'color'       => '#6366f1',
-            'visibility'  => 'public',
-            'is_private'  => false,
-            'is_default'  => true,
-            'owner_id'    => Auth::id(),
-        ]);
+            // Create default "General" team for this project
+            $defaultTeam = Team::create([
+                'project_id'  => $project->id,
+                'name'        => 'General',
+                'slug'        => 'general',
+                'description' => null,
+                'color'       => '#6366f1',
+                'visibility'  => 'public',
+                'is_private'  => false,
+                'is_default'  => true,
+                'owner_id'    => Auth::id(),
+            ]);
 
-        Participant::create([
-            'entity_type' => 'team',
-            'entity_id'   => $defaultTeam->id,
-            'user_id'     => Auth::id(),
-            'role'        => 'admin',
-            'joined_at'   => now(),
-        ]);
+            Participant::create([
+                'entity_type' => 'team',
+                'entity_id'   => $defaultTeam->id,
+                'user_id'     => Auth::id(),
+                'role'        => 'admin',
+                'joined_at'   => now(),
+            ]);
 
-        Channel::create([
-            'team_id'      => $defaultTeam->id,
-            'name'         => 'general',
-            'slug'         => 'general',
-            'channel_type' => 'standard',
-            'is_default'   => true,
-            'created_by'   => Auth::id(),
-        ]);
+            Channel::create([
+                'team_id'      => $defaultTeam->id,
+                'name'         => 'general',
+                'slug'         => 'general',
+                'channel_type' => 'standard',
+                'is_default'   => true,
+                'created_by'   => Auth::id(),
+            ]);
+
+            return $project;
+        });
 
         $project->load('owner');
 
