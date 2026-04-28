@@ -14,7 +14,6 @@ use App\Models\Team;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -56,82 +55,72 @@ class ProjectController extends Controller
 
     public function store(StoreProjectRequest $request): JsonResponse
     {
+        $data = $request->validated();
+        $data['owner_id'] = Auth::id();
+        $data['slug'] = $data['slug'] ?? Str::slug($data['name']);
+
+        $project = Project::create($data);
+
+        Participant::create([
+            'entity_type' => 'project',
+            'entity_id'   => $project->id,
+            'user_id'     => Auth::id(),
+            'role'        => 'admin',
+            'joined_at'   => now(),
+        ]);
+
+        ActivityLog::create([
+            'user_id'     => Auth::id(),
+            'action'      => 'CREATED_PROJECT',
+            'target_type' => 'project',
+            'target_id'   => $project->id,
+        ]);
+
+        // Create default "General" team for this project
         try {
-            $data = $request->validated();
-            $data['owner_id'] = Auth::id();
-            $data['slug'] = $data['slug'] ?? Str::slug($data['name']);
+            $teamData = [
+                'project_id'  => $project->id,
+                'name'        => 'General',
+                'slug'        => 'general',
+                'description' => null,
+                'color'       => '#6366f1',
+                'visibility'  => 'public',
+                'is_private'  => false,
+                'owner_id'    => Auth::id(),
+            ];
+            if (Schema::hasColumn('teams', 'is_default')) {
+                $teamData['is_default'] = true;
+            }
+            $defaultTeam = Team::create($teamData);
 
-            $project = DB::transaction(function () use ($data) {
-                $project = Project::create($data);
-
-                Participant::create([
-                    'entity_type' => 'project',
-                    'entity_id'   => $project->id,
-                    'user_id'     => Auth::id(),
-                    'role'        => 'admin',
-                    'joined_at'   => now(),
-                ]);
-
-                ActivityLog::create([
-                    'user_id'     => Auth::id(),
-                    'action'      => 'CREATED_PROJECT',
-                    'target_type' => 'project',
-                    'target_id'   => $project->id,
-                ]);
-
-                // Create default "General" team for this project
-                $teamData = [
-                    'project_id'  => $project->id,
-                    'name'        => 'General',
-                    'slug'        => 'general',
-                    'description' => null,
-                    'color'       => '#6366f1',
-                    'visibility'  => 'public',
-                    'is_private'  => false,
-                    'owner_id'    => Auth::id(),
-                ];
-                if (Schema::hasColumn('teams', 'is_default')) {
-                    $teamData['is_default'] = true;
-                }
-                $defaultTeam = Team::create($teamData);
-
-                Participant::create([
-                    'entity_type' => 'team',
-                    'entity_id'   => $defaultTeam->id,
-                    'user_id'     => Auth::id(),
-                    'role'        => 'admin',
-                    'joined_at'   => now(),
-                ]);
-
-                Channel::create([
-                    'team_id'      => $defaultTeam->id,
-                    'name'         => 'general',
-                    'slug'         => 'general',
-                    'channel_type' => 'standard',
-                    'is_default'   => true,
-                    'created_by'   => Auth::id(),
-                ]);
-
-                return $project;
-            });
-
-            $project->load('owner');
-
-            return response()->json([
-                'message' => 'Project created.',
-                'project' => new ProjectResource($project),
-            ], 201);
-        } catch (\Throwable $e) {
-            \Log::error('Project creation failed', [
-                'error'   => $e->getMessage(),
-                'trace'   => $e->getTraceAsString(),
-                'user_id' => Auth::id(),
+            Participant::create([
+                'entity_type' => 'team',
+                'entity_id'   => $defaultTeam->id,
+                'user_id'     => Auth::id(),
+                'role'        => 'admin',
+                'joined_at'   => now(),
             ]);
 
-            return response()->json([
-                'message' => 'Project creation failed: ' . $e->getMessage(),
-            ], 500);
+            Channel::create([
+                'team_id'      => $defaultTeam->id,
+                'name'         => 'general',
+                'slug'         => 'general',
+                'channel_type' => 'standard',
+                'is_default'   => true,
+                'created_by'   => Auth::id(),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::warning('Default team/channel creation failed for project ' . $project->id, [
+                'error' => $e->getMessage(),
+            ]);
         }
+
+        $project->load('owner');
+
+        return response()->json([
+            'message' => 'Project created.',
+            'project' => new ProjectResource($project),
+        ], 201);
     }
 
     public function show(Project $project): JsonResponse
