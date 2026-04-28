@@ -87,10 +87,16 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(function (\Throwable $e, Request $request) {
             if ($request->is('api/*') || $request->expectsJson()) {
+                \Log::error('Unhandled exception', [
+                    'message' => $e->getMessage(),
+                    'file'    => $e->getFile() . ':' . $e->getLine(),
+                    'trace'   => $e->getTraceAsString(),
+                ]);
+
                 return response()->json([
                     'error' => [
                         'code'    => 'SERVER_ERROR',
-                        'message' => 'Something went wrong on our end. Please try again later.',
+                        'message' => $e->getMessage() ?: 'Something went wrong on our end.',
                     ],
                 ], 500);
             }
